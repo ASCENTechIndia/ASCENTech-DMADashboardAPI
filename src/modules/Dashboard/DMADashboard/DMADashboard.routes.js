@@ -11,7 +11,7 @@ const router = express.Router();
  * Fetch DMA Dashboard data with modules, metrics, and status information
  */
 router.get(
-  '/DashboardDataNew ',
+  '/DashboardDataNew',
   dmaDashboardHandler
 );
 
