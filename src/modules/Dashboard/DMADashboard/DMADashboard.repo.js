@@ -163,6 +163,61 @@ FROM
   }
 };
 
+/**
+ * Fetch RTS ULB Wise data with application status breakdown
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const fetchRTSULBWiseData = async (req, res) => {
+  try {
+    const sql = `
+      WITH dashbord
+           AS (SELECT var_dept_engname, var_service_eng_name,
+                      num_application_deptid, num_application_serviceid,
+                      CASE WHEN status = 'New' THEN 1 ELSE 0 END AS new,
+                      CASE WHEN status = 'Approved' THEN 1 ELSE 0 END AS approved,
+                      CASE WHEN status = 'Verification Pending' THEN 1 ELSE 0 END AS verification_pending,
+                      CASE WHEN status = 'In Process' THEN 1 ELSE 0 END AS in_process,
+                      CASE WHEN status = 'Denied' THEN 1 ELSE 0 END AS denied,
+                      CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END AS deliverd,
+                      CASE WHEN status IN ('Authorisation Pending', 'In Process', 'Verification Pending') THEN 1 ELSE 0 END AS authorisation_pending,
+                      CASE WHEN status IN ('Authorisation Reject', 'Denied') THEN 1 ELSE 0 END AS authorisation_reject,
+                      CASE WHEN status = 'Payment Pending' THEN 1 ELSE 0 END AS payment_pending,
+                      CASE WHEN status IS NOT NULL THEN 1 ELSE 0 END AS total,
+                      application_status, ulbid
+                 FROM aorts.vw_dashborddata
+                WHERE ulbid NOT IN (550, 1))
+      SELECT var_corporation_shortname, num_corporation_id, SUM (new) new,
+             SUM (approved) approved,
+             SUM (verification_pending) verification_pending,
+             SUM (in_process) process, SUM (denied) denied, SUM (deliverd) deliverd,
+             SUM (authorisation_pending) authorisation_pending,
+             SUM (authorisation_reject) authorisation_reject,
+             SUM (payment_pending) payment_pending, SUM (total) total
+        FROM dashbord
+             INNER JOIN admins.aoma_corporation_mas ON num_corporation_id = ulbid
+      GROUP BY var_corporation_shortname, num_corporation_id, var_corporation_name
+      ORDER BY var_corporation_name
+    `;
+
+    const result = await executeQuery(sql, {}, {
+      outFormat: oracledb.OUT_FORMAT_OBJECT
+    });
+
+    const data = result.rows || [];
+
+    res.json({ success: true, data: data });
+
+  } catch (err) {
+    console.error("RTS ULB Wise Fetch Error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
+    });
+  }
+};
+
 module.exports = {
-  fetchDashboardDataNew
+  fetchDashboardDataNew,
+  fetchRTSULBWiseData
 };
