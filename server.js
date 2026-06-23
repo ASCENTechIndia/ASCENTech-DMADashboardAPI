@@ -5,24 +5,32 @@ const { logger } = require('./src/utils/logger');
 
 async function bootstrap() {
   try {
+    console.log('\n🔌 Connecting to Oracle Database...');
     await initOraclePool();
+    console.log('✅ Oracle Database Connected Successfully!\n');
 
     const app = createApp();
+    console.log('🔧 Initializing Express Server...');
 
-    // ✅ Detect IIS (iisnode sets IISNODE_VERSION, not just PORT)
-    const isIIS = !!process.env.IISNODE_VERSION;
-
-    // ✅ Use IIS port if IIS, else use config.port from .env
+    // ✅ Detect IIS (iisnode provides PORT)
+    const isIIS = !!process.env.PORT;
+    console.log(`🔧 IIS Detected: ${isIIS}`);
+    // ✅ Use IIS port if available, else fallback to your env (5000)
     const port = isIIS ? process.env.PORT : config.port;
-
+    console.log(`🔧 Server will listen on port: ${port}`);
     const server = app.listen(port, () => {
+      console.log('\n🚀 Server is Running!');
+      console.log(`   Port: ${port}`);
+      console.log(`   Environment: ${config.nodeEnv}`);
+      console.log(`   Mode: ${isIIS ? 'IIS' : 'LOCAL'}\n`);
       logger.info(
         { port, env: config.nodeEnv, mode: isIIS ? 'IIS' : 'LOCAL' },
         'Server started'
       );
     });
-
+    console.log('🔧 Express Server Initialized Successfully!');
     server.on('error', async (error) => {
+      console.error('❌ Server Error:', error);
       if (error.code === 'EADDRINUSE') {
         logger.error({ port }, 'Port already in use.');
       } else {
