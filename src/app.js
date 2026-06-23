@@ -3,7 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const rateLimit = require('express-rate-limit');
-
+const { getConnection } = require('./config/db');
 const { config, validateConfig } = require('./config/env');
 const routes = require('./routes');
 const { notFoundHandler, errorHandler } = require('./middleware/error-handler');
@@ -21,8 +21,6 @@ function createApp() {
       // origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',').map((x) => x.trim()),
       origin: [
     'http://localhost:5173',
-    'https://rtsdashboard.dhulecorporation.in',
-    'https://rtsdashboard.nagarkaryavalinewuat.com'
   ],
       credentials: true,
     })
@@ -42,18 +40,20 @@ function createApp() {
 
   app.use('/api', routes);
 
-  app.get('/api/health', async (req, res) => {
+app.get('/api/health', async (req, res) => {
   let connection;
 
   try {
-    connection = await oracledb.getConnection();
+    connection = await getConnection("db1");
 
-    const result = await connection.execute(`SELECT 1 FROM dual`);
+    const result = await connection.execute(
+      `SELECT 1 AS STATUS FROM dual`
+    );
 
     res.status(200).json({
       status: 'OK',
       message: 'Server & DB are healthy',
-      db: result.rows ? 'Connected' : 'Unknown',
+      db: 'Connected',
       uptime: process.uptime(),
       timestamp: new Date()
     });
@@ -67,11 +67,10 @@ function createApp() {
     });
   } finally {
     if (connection) {
-      try { await connection.close(); } catch (e) {}
+      await connection.close();
     }
   }
 });
-
 
 
   app.get('/api/test', (req, res) => {
