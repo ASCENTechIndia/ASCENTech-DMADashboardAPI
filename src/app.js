@@ -72,6 +72,8 @@ function createApp() {
   }
 });
 
+
+
   app.get('/api/test', (req, res) => {
   res.json({
     status: 'OK',
@@ -79,6 +81,8 @@ function createApp() {
     time: new Date()
   });
 });
+
+
 
   app.use(notFoundHandler);
   app.use(errorHandler);
