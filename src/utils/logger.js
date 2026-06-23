@@ -17,17 +17,12 @@ if (!fs.existsSync(logsDir)) {
 
 function createTargets(fileName, level = 'info') {
   return [
-    process.env.NODE_ENV === 'development' && {
-      target: 'pino-pretty',
-      level,
-      options: { colorize: true, translateTime: 'SYS:standard' },
-    },
     {
       target: 'pino/file',
       level,
       options: { destination: path.join(logsDir, fileName) },
     },
-  ].filter(Boolean);
+  ];
 }
 
 const logger = pino(
@@ -44,15 +39,11 @@ const successLogger = pino(
   { level: 'info', name: 'success' },
   pino.transport({
     targets: [
-      process.env.NODE_ENV === 'development' && {
-        target: 'pino-pretty',
-        options: { colorize: true, translateTime: 'SYS:standard' },
-      },
       {
         target: 'pino/file',
         options: { destination: path.join(logsDir, 'success.log') },
       },
-    ].filter(Boolean),
+    ],
   })
 );
 
