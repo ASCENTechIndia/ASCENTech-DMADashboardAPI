@@ -191,7 +191,7 @@ GROUP BY c.VAR_CORPORATION_NAME`;
     }
   res.json({
   success: true,
-   data: result.rows
+  data: result.rows
 });
   } catch (err) {
     console.error("Property Summary Fetch Error:", err);
