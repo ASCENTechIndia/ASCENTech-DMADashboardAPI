@@ -1,5 +1,5 @@
 const { getTilesDataRepo, getModewiseCollectionRepo, getPropertySummaryRepo,
-  getCollectioninPerctRepo, getTotalPerfCorpbyCollRepo, getTotalPerfCorpCollectionRepo
+  getCollectioninPerctRepo, getTotalPerfCorpbyCollRepo, getTotalPerfCorpCollectionRepo, getTodaysCollectionRepo
  } = require('./Property.repo');
 
 /**
@@ -37,7 +37,12 @@ async function fetchTotalPerfCorpCollection(req, res) {
   return await getTotalPerfCorpCollectionRepo(req, res);
 }
 
+async function fetchTodaysCollection(req, res) {
+  return await getTodaysCollectionRepo(req, res);
+}
+
+
 module.exports = {
   fetchTilesData, fetchModewiseCollection, fetchPropertySummary, fetchCollectioninPerct,
-  fetchTotalPerfCorpbyColl, fetchTotalPerfCorpCollection
+  fetchTotalPerfCorpbyColl, fetchTotalPerfCorpCollection, fetchTodaysCollection
 };
