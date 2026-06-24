@@ -72,7 +72,7 @@ LEFT JOIN admins.dma_billprint_mas b
     console.error("Tiles Fetch Error:", err);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: err.message
     });
   }
 };
@@ -153,7 +153,7 @@ LEFT JOIN admins.dma_billprint_mas b
     console.error("Modewise Collection Fetch Error:", err);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: err.message
     });
   }
 };
@@ -197,7 +197,7 @@ GROUP BY c.VAR_CORPORATION_NAME`;
     console.error("Property Summary Fetch Error:", err);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: err.message
     });
   }
 };
@@ -262,14 +262,14 @@ const getCollectioninPerctRepo = async (req, res) => {
     }
   res.json({
   success: true,
-  data: result.rows[0]
+  data: result.rows
 });
   } catch (err) {
-    console.error("Collection Percentage Fetch Error:", err);
-    res.status(500).json({
-      success: false,
-      message: "Internal Server Error"
-    });
+  console.error("Collection Percentage Fetch Error:", err);
+  res.status(500).json({
+    success: false,
+    message: err.message
+  });
   }
 };
 
@@ -321,15 +321,15 @@ const getTotalPerfCorpbyCollRepo = async (req, res) => {
     if (!result.rows || result.rows.length === 0) {
       return res.json({ success: true, data: [] });
     }
-  res.json({
+res.json({
   success: true,
-  data: result.rows[0]
+  data: result.rows
 });
   } catch (err) {
     console.error("Total Performance Corporations by Collection Fetch Error:", err);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+     message: err.message
     });
   }
 };
@@ -380,16 +380,16 @@ const getTotalPerfCorpCollectionRepo = async (req, res) => {
       return res.json({ success: true, data: [] });
     }
 
-  res.json({
+res.json({
   success: true,
-  data: result.rows[0]
+  data: result.rows
 });
 
   } catch (err) {
     console.error("Tiles Fetch Error:", err);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+       message: err.message
     });
   }
 };
