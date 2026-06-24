@@ -41,12 +41,6 @@ router.get(
 );
 
 router.get(
-  '/getTotalPerfCorpbyColl',
-  validate(getTotalPerfCorpbyCollSchema, { source: 'query' }),
-  getTotalPerfCorpbyCollHandler
-);
-
-router.get(
   '/getTotalPerfCorpCollection',
   validate(getTotalPerfCorpCollectionSchema, { source: 'query' }),
   getTotalPerfCorpCollectionHandler
