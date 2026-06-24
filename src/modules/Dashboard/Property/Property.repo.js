@@ -65,7 +65,7 @@ LEFT JOIN admins.dma_billprint_mas b
 
   res.json({
   success: true,
-  data: result.rows[0]
+  data: result.rows
 });
 
   } catch (err) {
@@ -146,7 +146,7 @@ LEFT JOIN admins.dma_billprint_mas b
 
   res.json({
   success: true,
-  data: result.rows[0]
+  data: result.rows
 });
 
   } catch (err) {
@@ -191,7 +191,7 @@ GROUP BY c.VAR_CORPORATION_NAME`;
     }
   res.json({
   success: true,
-  data: result.rows[0]
+   data: result.rows
 });
   } catch (err) {
     console.error("Property Summary Fetch Error:", err);
