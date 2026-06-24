@@ -217,7 +217,212 @@ const fetchRTSULBWiseData = async (req, res) => {
   }
 };
 
+/**
+ * Fetch RTS ULB Department Wise data
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const fetchRTSULBDeptWiseData = async (req, res) => {
+  try {
+    const { ulbId } = req.query;
+
+    if (!ulbId) {
+      return res.status(400).json({
+        success: false,
+        message: "ulbId is required"
+      });
+    }
+
+    const sql = `
+      with dashbord as( 
+        select var_dept_engname,var_service_eng_name, num_application_deptid, num_application_serviceid, 
+        case when status= 'New' then 1 else 0 end as New, 
+        case when status = 'Approved' then 1 else 0 end as Approved, 
+        case when status = 'Verification Pending' then 1 else 0 end as Verification_Pending, 
+        case when status = 'In Process' then 1 else 0 end as in_Process, 
+        case when status = 'Denied' then 1 else 0 end as Denied, 
+        case when status = 'Delivered' then 1 else 0 end as Deliverd, 
+        case when status in ('Authorisation Pending','In Process','Verification Pending') then 1 else 0 end as Authorisation_Pending, 
+        case when status in ('Authorisation Reject','Denied') then 1 else 0 end as Authorisation_Reject, 
+        case when status = 'Payment Pending' then 1 else 0 end as Payment_Pending,  
+        case when status is not null then 1 else 0 end as total,application_status,ulbid 
+        from aorts.vw_dashborddata  where ulbid not in ( 550,1) 
+      ) 
+      select
+        var_dept_engname ,num_application_deptid, 
+        sum(New) New,sum(Approved) Approved,sum(Verification_Pending) Verification_Pending 
+        ,sum(in_Process) Process,sum(Denied) Denied,sum(Deliverd) Deliverd,sum(Authorisation_Pending) Authorisation_Pending, 
+        sum(Authorisation_Reject) Authorisation_Reject,sum(Payment_Pending) Payment_Pending,sum(total) total 
+      from dashbord 
+      where ulbid = :ulbId
+      group by var_dept_engname ,num_application_deptid
+    `;
+
+    const result = await executeQuery(sql, { ulbId }, {
+      outFormat: oracledb.OUT_FORMAT_OBJECT
+    });
+
+    const data = result.rows || [];
+
+    res.json({ success: true, data: data });
+
+  } catch (err) {
+    console.error("RTS ULB Dept Wise Fetch Error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
+    });
+  }
+};
+
+/**
+ * Fetch RTS ULB Service Wise data
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const fetchRTSULBServiceWiseData = async (req, res) => {
+  try {
+    const { ulbId, deptId } = req.query;
+
+    if (!ulbId || !deptId) {
+      return res.status(400).json({
+        success: false,
+        message: "ulbId and deptId are required"
+      });
+    }
+
+    const sql = `
+      with dashbord as( 
+        select var_dept_engname,var_service_eng_name, num_application_deptid, num_application_serviceid, 
+        case when status= 'New' then 1 else 0 end as New, 
+        case when status = 'Approved' then 1 else 0 end as Approved, 
+        case when status = 'Verification Pending' then 1 else 0 end as Verification_Pending, 
+        case when status = 'In Process' then 1 else 0 end as in_Process, 
+        case when status = 'Denied' then 1 else 0 end as Denied, 
+        case when status = 'Delivered' then 1 else 0 end as Deliverd, 
+        case when status in ('Authorisation Pending','In Process','Verification Pending') then 1 else 0 end as Authorisation_Pending, 
+        case when status in ('Authorisation Reject','Denied') then 1 else 0 end as Authorisation_Reject, 
+        case when status = 'Payment Pending' then 1 else 0 end as Payment_Pending,  
+        case when status is not null then 1 else 0 end as total,application_status,ulbid 
+        from aorts.vw_dashborddata  where ulbid not in ( 550,1) 
+      ) 
+      select 
+        var_service_eng_name , 
+        sum(New) New,sum(Approved) Approved,sum(Verification_Pending) Verification_Pending 
+        ,sum(in_Process) Process,sum(Denied) Denied,sum(Deliverd) Deliverd,sum(Authorisation_Pending) Authorisation_Pending, 
+        sum(Authorisation_Reject) Authorisation_Reject,sum(Payment_Pending) Payment_Pending,sum(total) total 
+      from dashbord 
+      where num_application_deptid = :deptId and ulbid = :ulbId
+      group by var_service_eng_name
+    `;
+
+    const result = await executeQuery(sql, { ulbId, deptId }, {
+      outFormat: oracledb.OUT_FORMAT_OBJECT
+    });
+
+    const data = result.rows || [];
+
+    res.json({ success: true, data: data });
+
+  } catch (err) {
+    console.error("RTS ULB Service Wise Fetch Error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
+    });
+  }
+};
+
+/**
+ * Fetch RTS Status Wise data
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const fetchRTSStatusWiseData = async (req, res) => {
+  try {
+    const { status, ulbId } = req.query;
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: "status is required"
+      });
+    }
+
+    let sql = `
+      with dashbord as( 
+        select var_dept_engname,var_service_eng_name, num_application_deptid, num_application_serviceid, 
+        case when status= 'New' then 1 else 0 end as New, 
+        case when status = 'Approved' then 1 else 0 end as Approved, 
+        case when status = 'Verification Pending' then 1 else 0 end as Verification_Pending, 
+        case when status = 'In Process' then 1 else 0 end as in_Process, 
+        case when status = 'Denied' then 1 else 0 end as Denied, 
+        case when status = 'Delivered' then 1 else 0 end as Deliverd, 
+        case when status in ('Authorisation Pending','In Process','Verification Pending') then 1 else 0 end as Authorisation_Pending, 
+        case when status in ('Authorisation Reject','Denied') then 1 else 0 end as Authorisation_Reject, 
+        case when status = 'Payment Pending' then 1 else 0 end as Payment_Pending,  
+        case when status is not null then 1 else 0 end as total,application_status,ulbid 
+        from aorts.vw_dashborddata  where ulbid not in ( 550,1) 
+      ) 
+      select 
+        var_dept_engname,num_application_deptid,
+        ${status === 'TOT' 
+          ? 'SUM(total) status'
+          : `case application_status 
+              when 'NW' then SUM (new) 
+              when 'AP' then SUM(approved) 
+              when 'VP' then SUM(verification_pending) 
+              when 'IP' then SUM(in_process) 
+              when 'DN' then SUM(denied) 
+              when 'DL' then SUM(deliverd) 
+              when 'CP' then SUM(authorisation_pending) 
+              when 'CR' then SUM(authorisation_reject) 
+              when 'PP' then SUM(payment_pending) 
+             end status, application_status`
+        }
+      FROM dashbord 
+      WHERE 1 = 1 
+    `;
+
+    const params = {};
+
+    if (status !== 'TOT') {
+      sql += ` AND application_status = :status `;
+      params.status = status;
+      if (ulbId) {
+        sql += ` AND ulbid = :ulbId `;
+        params.ulbId = ulbId;
+      }
+      sql += ` GROUP BY var_dept_engname,num_application_deptid, application_status `;
+    } else {
+      if (ulbId) {
+        sql += ` AND ulbid = :ulbId `;
+        params.ulbId = ulbId;
+      }
+      sql += ` GROUP BY var_dept_engname,num_application_deptid `;
+    }
+
+    const result = await executeQuery(sql, params, {
+      outFormat: oracledb.OUT_FORMAT_OBJECT
+    });
+
+    const data = result.rows || [];
+
+    res.json({ success: true, data: data });
+
+  } catch (err) {
+    console.error("RTS Status Wise Fetch Error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
+    });
+  }
+};
+
 module.exports = {
   fetchDashboardDataNew,
-  fetchRTSULBWiseData
+  fetchRTSULBWiseData,
+  fetchRTSULBDeptWiseData,
+  fetchRTSULBServiceWiseData,
+  fetchRTSStatusWiseData
 };
