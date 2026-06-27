@@ -264,7 +264,7 @@ const getTotalPerfCorpbyCollRepo = async (req, res) => {
             LEFT JOIN admins.aoma_corporation_mas c
             ON c.num_corporation_id = p.ulbid
             GROUP BY c.var_corporation_name)
-            ORDER BY rank_no`;
+            ORDER BY rank_no fetch first 5 rows only`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
@@ -322,7 +322,7 @@ const getTotalPerfCorpCollectionRepo = async (req, res) => {
               ON c.num_corporation_id = p.ulbid
               GROUP BY c.var_corporation_name
               )
-              ORDER BY rank_no`;
+              ORDER BY rank_no fetch first 5 rows only`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
