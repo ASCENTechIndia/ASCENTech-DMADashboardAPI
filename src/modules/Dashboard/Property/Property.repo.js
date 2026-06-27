@@ -227,44 +227,37 @@ const getCollectioninPerctRepo = async (req, res) => {
 const getTotalPerfCorpbyCollRepo = async (req, res) => {
   try {
     const sql = `
-       SELECT corporation, total_demand, total_collection, collection_percentage, rank_no
-            FROM (
-            SELECT
-            TO_CHAR(c.var_corporation_name) AS corporation,
-            SUM(b.billprint_btotaltax + b.billprint_ctotaltax) AS total_demand,
-            SUM(r.rec_btotal + r.rec_ctotal) AS total_collection,
-            SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-            - SUM(r.rec_btotal + r.rec_ctotal) AS total_outstanding,
-            ROUND(
-            CASE 
+      SELECT
+     /* CORPORATION NAME*/
+    TO_CHAR(c.var_corporation_name) AS corporation,
+    /* TOTALS */
+    SUM(b.billprint_btotaltax + b.billprint_ctotaltax) AS total_demand,
+ 
+    SUM(r.rec_btotal + r.rec_ctotal) AS total_collection,
+ 
+    SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
+      - SUM(r.rec_btotal + r.rec_ctotal) AS total_outstanding,
+ 
+  /* OVERALL % */
+    ROUND(
+        CASE
             WHEN SUM(b.billprint_btotaltax + b.billprint_ctotaltax) = 0 THEN 0
-            ELSE 
-            SUM(r.rec_btotal + r.rec_ctotal) * 100 /
-            SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-            END
-            ,2) AS collection_percentage,
-            RANK() OVER (
-            ORDER BY
-            ROUND(
-            CASE 
-            WHEN SUM(b.billprint_btotaltax + b.billprint_ctotaltax) = 0 THEN 0
-            ELSE 
-            SUM(r.rec_btotal + r.rec_ctotal) * 100 /
-            SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-            END
-            ,2
-            ) DESC) rank_no
-            FROM admins.dma_prop_mas p
-            LEFT JOIN admins.dma_rec_mas r
-            ON p.prop_propno = r.prop_propno
-            AND p.ulbid = r.ulbid
-            LEFT JOIN admins.dma_billprint_mas b
-            ON p.prop_propno = b.prop_propno
-            AND p.ulbid = b.ulbid
-            LEFT JOIN admins.aoma_corporation_mas c
-            ON c.num_corporation_id = p.ulbid
-            GROUP BY c.var_corporation_name)
-            ORDER BY rank_no fetch first 5 rows only`;
+            ELSE
+                SUM(r.rec_btotal + r.rec_ctotal) * 100 /
+                SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
+        END,
+    2) AS collection_percentage
+FROM admins.dma_prop_mas p
+LEFT JOIN admins.dma_rec_mas r
+       ON p.prop_propno = r.prop_propno
+      AND p.ulbid = r.ulbid
+LEFT JOIN admins.dma_billprint_mas b
+       ON p.prop_propno = b.prop_propno
+      AND p.ulbid = b.ulbid
+LEFT JOIN admins.aoma_corporation_mas c
+       ON c.num_corporation_id = p.ulbid
+GROUP BY c.var_corporation_name
+ORDER BY collection_percentage DESC NULLS LAST fetch first 5 rows only`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
@@ -289,40 +282,36 @@ const getTotalPerfCorpCollectionRepo = async (req, res) => {
   try {
     const sql = `
                 SELECT
-              corporation,
-              total_demand,
-              total_collection,
-              collection_percentage,
-              rank_no
-              FROM (
-              SELECT
-              TO_CHAR(c.var_corporation_name) AS corporation,
-              SUM(b.billprint_btotaltax + b.billprint_ctotaltax) AS total_demand,
-              SUM(r.rec_btotal + r.rec_ctotal) AS total_collection,
-              SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-              - SUM(r.rec_btotal + r.rec_ctotal) AS total_outstanding,
-              ROUND(
-              CASE 
-              WHEN SUM(b.billprint_btotaltax + b.billprint_ctotaltax) = 0 THEN 0
-              ELSE 
-              SUM(r.rec_btotal + r.rec_ctotal) * 100 /
-              SUM(b.billprint_btotaltax + b.billprint_ctotaltax) END
-              ,2) AS collection_percentage,
-              RANK() OVER (
-              ORDER BY SUM(r.rec_btotal + r.rec_ctotal) DESC
-              ) AS rank_no
-              FROM admins.dma_prop_mas p
-              LEFT JOIN admins.dma_rec_mas r
-              ON p.prop_propno = r.prop_propno
-              AND p.ulbid = r.ulbid
-              LEFT JOIN admins.dma_billprint_mas b
-              ON p.prop_propno = b.prop_propno
-              AND p.ulbid = b.ulbid
-              LEFT JOIN admins.aoma_corporation_mas c
-              ON c.num_corporation_id = p.ulbid
-              GROUP BY c.var_corporation_name
-              )
-              ORDER BY rank_no fetch first 5 rows only`;
+     /* CORPORATION NAME*/
+    TO_CHAR(c.var_corporation_name) AS corporation,
+    /* TOTALS */
+    SUM(b.billprint_btotaltax + b.billprint_ctotaltax) AS total_demand,
+ 
+    SUM(r.rec_btotal + r.rec_ctotal) AS total_collection,
+ 
+    SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
+      - SUM(r.rec_btotal + r.rec_ctotal) AS total_outstanding,
+ 
+  /* OVERALL % */
+    ROUND(
+        CASE
+            WHEN SUM(b.billprint_btotaltax + b.billprint_ctotaltax) = 0 THEN 0
+            ELSE
+                SUM(r.rec_btotal + r.rec_ctotal) * 100 /
+                SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
+        END,
+    2) AS collection_percentage
+FROM admins.dma_prop_mas p
+LEFT JOIN admins.dma_rec_mas r
+       ON p.prop_propno = r.prop_propno
+      AND p.ulbid = r.ulbid
+LEFT JOIN admins.dma_billprint_mas b
+       ON p.prop_propno = b.prop_propno
+      AND p.ulbid = b.ulbid
+LEFT JOIN admins.aoma_corporation_mas c
+       ON c.num_corporation_id = p.ulbid
+GROUP BY c.var_corporation_name
+ORDER BY collection_percentage DESC NULLS LAST  fetch first 5 rows only`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
