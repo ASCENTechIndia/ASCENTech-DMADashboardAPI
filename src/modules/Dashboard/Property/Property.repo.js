@@ -86,56 +86,7 @@ LEFT JOIN admins.dma_billprint_mas b
 const getModewiseCollectionRepo = async (req, res) => {
   try {
     const sql = `
-    SELECT
-   SUM(CASE WHEN UPPER(r.rec_source) = 'ONLINE'
-                 THEN (r.rec_btotal + r.rec_ctotal)
-                 ELSE 0 END) AS online_amount,
-  SUM(CASE WHEN UPPER(r.rec_source) = 'OFFLINE'
-                 THEN (r.rec_btotal + r.rec_ctotal)
-                 ELSE 0 END) AS offline_amount,
-   SUM(CASE WHEN UPPER(r.rec_source) = 'CASH'
-                 THEN (r.rec_btotal + r.rec_ctotal)
-                 ELSE 0 END) AS cash_amount,
-    ROUND(
-        CASE 
-            WHEN SUM(r.rec_btotal + r.rec_ctotal) = 0 THEN 0
-            ELSE 
-            SUM(CASE WHEN UPPER(r.rec_source)='ONLINE'
-                          THEN (r.rec_btotal + r.rec_ctotal)
-                          ELSE 0 END)
-             * 100 /
-            SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-        END
-    ,2) AS online_percentage,
-    ROUND(
-        CASE 
-            WHEN SUM(r.rec_btotal + r.rec_ctotal) = 0 THEN 0
-            ELSE 
-            SUM(CASE WHEN UPPER(r.rec_source)='OFFLINE'
-                          THEN (r.rec_btotal + r.rec_ctotal)
-                          ELSE 0 END)
-             * 100 /
-            SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-        END
-    ,2) AS offline_percentage,
-    ROUND(
-        CASE 
-            WHEN SUM(r.rec_btotal + r.rec_ctotal) = 0 THEN 0
-            ELSE 
-           SUM(CASE WHEN UPPER(r.rec_source)='CASH'
-                          THEN (r.rec_btotal + r.rec_ctotal)
-                          ELSE 0 END)
-             * 100 /
-            SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-        END
-    ,2) AS cash_percentage
-FROM admins.dma_prop_mas p
-LEFT JOIN admins.dma_rec_mas r
-       ON p.prop_propno = r.prop_propno
-      AND p.ulbid       = r.ulbid
-LEFT JOIN admins.dma_billprint_mas b
-       ON p.prop_propno = b.prop_propno
-      AND p.ulbid       = b.ulbid`;
+    select * from  admins.vw_collectionrecmode_dma`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
@@ -394,7 +345,33 @@ res.json({
   }
 };
 
+const getTodaysCollectionRepo = async (req, res) => {
+  try {
+    const sql = `
+        select  *  from   admins.vw_TodatyColl_Dma`;
+    const result = await executeQuery(sql, {}, {
+      outFormat: oracledb.OUT_FORMAT_OBJECT
+    });
+
+    if (!result.rows || result.rows.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+
+res.json({
+  success: true,
+  data: result.rows
+});
+
+  } catch (err) {
+    console.error("Todays Collection Fetch Error:", err);
+    res.status(500).json({
+      success: false,
+       message: err.message
+    });
+  }
+};
+
 module.exports = {
   getTilesDataRepo, getModewiseCollectionRepo, getPropertySummaryRepo, getCollectioninPerctRepo,
-  getTotalPerfCorpbyCollRepo, getTotalPerfCorpCollectionRepo
+  getTotalPerfCorpbyCollRepo, getTotalPerfCorpCollectionRepo, getTodaysCollectionRepo
 };

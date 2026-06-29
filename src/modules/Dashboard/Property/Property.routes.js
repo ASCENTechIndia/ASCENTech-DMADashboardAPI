@@ -2,10 +2,12 @@ const express = require('express');
 const validate = require('../../../middleware/validate.middleware');
 const { authRequired } = require('../../../middleware/auth');
 const { getTilesDataQuerySchema, getModewiseCollectionQuerySchema,getPropertySummaryQuerySchema,
-  getCollectioninPerctQuerySchema, getTotalPerfCorpbyCollSchema, getTotalPerfCorpCollectionSchema
+  getCollectioninPerctQuerySchema, getTotalPerfCorpbyCollSchema, getTotalPerfCorpCollectionSchema,
+  getTodaysCollectionSchema
   } = require('./Property.validation');
 const { getTilesDataHandler, getModewiseCollectionHandler,getPropertySummaryHandler,
-  getCollectioninPerctHandler, getTotalPerfCorpbyCollHandler, getTotalPerfCorpCollectionHandler
+  getCollectioninPerctHandler, getTotalPerfCorpbyCollHandler, getTotalPerfCorpCollectionHandler,
+  getTodaysCollectionHandler
  } = require('./Property.controller');
 
 const router = express.Router();
@@ -44,6 +46,12 @@ router.get(
   '/getTotalPerfCorpCollection',
   validate(getTotalPerfCorpCollectionSchema, { source: 'query' }),
   getTotalPerfCorpCollectionHandler
+);
+
+router.get(
+  '/getTodaysCollection',
+  validate(getTodaysCollectionSchema, { source: 'query' }),
+  getTodaysCollectionHandler
 );
 
 module.exports = router;

@@ -30,7 +30,12 @@ const getTotalPerfCorpCollectionSchema = z.object({
   // ulbId: z.coerce.number().int().positive().optional(),
 }).passthrough();
 
+const getTodaysCollectionSchema = z.object({
+  // Optional filters for DMA Dashboard
+  // ulbId: z.coerce.number().int().positive().optional(),
+}).passthrough();
+
 module.exports = {
   getTilesDataQuerySchema, getModewiseCollectionQuerySchema,getPropertySummaryQuerySchema, getCollectioninPerctQuerySchema,
-  getTotalPerfCorpbyCollSchema, getTotalPerfCorpCollectionSchema
+  getTotalPerfCorpbyCollSchema, getTotalPerfCorpCollectionSchema, getTodaysCollectionSchema
 };

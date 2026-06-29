@@ -1,5 +1,5 @@
 const { fetchTilesData, fetchModewiseCollection, fetchPropertySummary,
-  fetchCollectioninPerct, fetchTotalPerfCorpbyColl, fetchTotalPerfCorpCollection
+  fetchCollectioninPerct, fetchTotalPerfCorpbyColl, fetchTotalPerfCorpCollection, fetchTodaysCollection
  } = require('./Property.service');
 const { logApiSuccess, logApiError } = require('../../../utils/log');
 
@@ -76,7 +76,17 @@ async function getTotalPerfCorpCollectionHandler(req, res, next) {
   }
 }
 
+async function getTodaysCollectionHandler(req, res, next) {
+  try {
+    logApiSuccess(req, 200, {}, 'Todays Collection request initiated');
+    return await fetchTodaysCollection(req, res);
+  } catch (error) {
+    logApiError(req, 500, error.message, 'Todays Collection error');
+    return next(error);
+  }
+}
+
 module.exports = {
   getTilesDataHandler, getModewiseCollectionHandler, getPropertySummaryHandler, getCollectioninPerctHandler,
-  getTotalPerfCorpbyCollHandler, getTotalPerfCorpCollectionHandler
+  getTotalPerfCorpbyCollHandler, getTotalPerfCorpCollectionHandler, getTodaysCollectionHandler
 };
