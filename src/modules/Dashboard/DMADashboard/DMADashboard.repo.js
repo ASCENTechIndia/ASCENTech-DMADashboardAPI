@@ -43,7 +43,7 @@ const fetchDashboardDataNew = async (req, res) => {
     // }
 
     const sql = `
-      SELECT JSON_ARRAYAGG(
+    SELECT JSON_ARRAYAGG(
          JSON_OBJECT(
            'code' VALUE x.var_dasdboard_modulecode,
            'title' VALUE x.var_module_title,
@@ -79,18 +79,28 @@ FROM
         m.num_seqno,
 
         SUM(NVL(d.num_dasdboard_column1,0)) AS total_column1,
+
         SUM(NVL(d.num_dasdboard_column2,0)) AS total_column2,
-        SUM(NVL(d.num_dasdboard_column3,0)) AS total_column3,
+
+        CASE
+            WHEN d.var_dasdboard_modulecode IN ('PTAX','WAT','CFC','MRKT')
+            THEN ROUND(
+                     SUM(NVL(d.num_dasdboard_column2,0))
+                     * 100 /
+                     NULLIF(SUM(NVL(d.num_dasdboard_column1,0)),0),
+                     2
+                 )
+            ELSE
+                SUM(NVL(d.num_dasdboard_column3,0))
+        END AS total_column3,
 
         MAX(c1.var_column_label) AS column1_label,
         MAX(c2.var_column_label) AS column2_label,
         MAX(c3.var_column_label) AS column3_label,
 
         CASE
-            WHEN MAX(SYSDATE - d.dat_dasdboard_transdt) <= 30
-                 THEN 'GREEN'
-            WHEN MAX(SYSDATE - d.dat_dasdboard_transdt) > 30
-                 THEN 'YELLOW'
+            WHEN MAX(SYSDATE - d.dat_dasdboard_transdt) <= 30 THEN 'GREEN'
+            WHEN MAX(SYSDATE - d.dat_dasdboard_transdt) > 30 THEN 'YELLOW'
             ELSE 'Light_Coral'
         END AS colorcode
 
@@ -116,13 +126,18 @@ FROM
        AND c3.chr_active = 'Y'
 
     WHERE m.chr_active = 'Y'
-      -- AND d.num_dashboard_ulbid = 890
+    -- AND d.num_dashboard_ulbid = 890
 
     GROUP BY
         d.var_dasdboard_modulecode,
         m.var_module_title,
         m.num_seqno
-) x   `;
+order by case when var_dasdboard_modulecode='RTS' then 1 
+     when var_dasdboard_modulecode='PTAX' then 2
+      when var_dasdboard_modulecode='WAT' then 3
+       when var_dasdboard_modulecode='CFC' then 4
+       else 5 end 
+) x  `;
 
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
