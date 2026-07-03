@@ -128,15 +128,11 @@ FROM
     WHERE m.chr_active = 'Y'
     -- AND d.num_dashboard_ulbid = 890
 
-    GROUP BY
+   GROUP BY
         d.var_dasdboard_modulecode,
         m.var_module_title,
-        m.num_seqno
-order by case when var_dasdboard_modulecode='RTS' then 1 
-     when var_dasdboard_modulecode='PTAX' then 2
-      when var_dasdboard_modulecode='WAT' then 3
-       when var_dasdboard_modulecode='CFC' then 4
-       else 5 end 
+        m.num_seqno,num_module_orderby
+order by num_module_orderby
 ) x  `;
 
     const result = await executeQuery(sql, {}, {
