@@ -35,26 +35,37 @@ function daysInMonth(month, year) {
 const getTilesDataRepo = async (req, res) => {
   try {
  const sql = `
-      SELECT 
-    SUM(b.billprint_btotaltax + b.billprint_ctotaltax) AS total_demand,
-    SUM(r.rec_btotal + r.rec_ctotal) AS total_collection,
-    SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-      - SUM(r.rec_btotal + r.rec_ctotal) AS total_outstanding,
+      WITH BILL AS
+(
+    SELECT
+        ULBID,
+        SUM(BILLPRINT_BTOTALTAX + BILLPRINT_CTOTALTAX) AS TOTAL_DEMAND
+    FROM admins.DMA_BILLPRINT_MAS
+    GROUP BY ULBID
+),
+REC AS
+(
+    SELECT
+        ULBID,
+        SUM(REC_BTOTAL + REC_CTOTAL) AS TOTAL_COLLECTION
+    FROM admins.DMA_REC_MAS
+    GROUP BY ULBID
+)
+SELECT
+    SUM(B.TOTAL_DEMAND) AS TOTAL_DEMAND,
+    SUM(R.TOTAL_COLLECTION) AS TOTAL_COLLECTION,
+    SUM(B.TOTAL_DEMAND)
+    - SUM(R.TOTAL_COLLECTION) AS TOTAL_OUTSTANDING,
     ROUND(
-        CASE 
-            WHEN SUM(b.billprint_btotaltax + b.billprint_ctotaltax) = 0 THEN 0
-            ELSE 
-            SUM(r.rec_btotal + r.rec_ctotal) * 100 /
-             SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-        END
-    ,2) AS collection_percentage
-FROM admins.dma_prop_mas p
-LEFT JOIN admins.dma_rec_mas r
-       ON p.prop_propno = r.prop_propno
-       AND p.ulbid       = r.ulbid
-LEFT JOIN admins.dma_billprint_mas b
-       ON p.prop_propno = b.prop_propno
-      AND p.ulbid       = b.ulbid`;
+        SUM(R.TOTAL_COLLECTION)
+        * 100 /
+        NULLIF(SUM(B.TOTAL_DEMAND),0),
+    2) AS COLLECTION_PERCENTAGE
+FROM rec P
+LEFT JOIN BILL B
+       ON P.ULBID = B.ULBID
+LEFT JOIN REC R
+       ON P.ULBID = R.ULBID`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
@@ -87,11 +98,33 @@ LEFT JOIN admins.dma_billprint_mas b
 const getModewiseCollectionRepo = async (req, res) => {
   try {
     const sql = `
+WITH BILL AS
+(
+    SELECT
+        ULBID,
+        SUM(BILLPRINT_BTOTALTAX + BILLPRINT_CTOTALTAX) AS TOTAL_DEMAND
+    FROM ADMINS.DMA_BILLPRINT_MAS
+    GROUP BY ULBID
+),
+REC AS
+(
+    SELECT
+        ULBID,
+        AMTTYPE,
+        SUM(REC_BTOTAL + REC_CTOTAL) AS TOTAL_COLLECTION
+    FROM ADMINS.DMA_REC_MAS
+    GROUP BY ULBID, AMTTYPE
+)
 SELECT
+
+    /* ========================= */
+    /* MODE WISE AMOUNT */
+    /* ========================= */
+
     SUM(
         CASE
             WHEN rm.var_recmode_paycode = 'ONL'
-            THEN (r.rec_btotal + r.rec_ctotal)
+            THEN NVL(p.TOTAL_COLLECTION,0)
             ELSE 0
         END
     ) AS online_amount,
@@ -100,7 +133,7 @@ SELECT
         CASE
             WHEN rm.var_recmode_paycode NOT IN ('ONL','CSH')
                  OR rm.var_recmode_paycode IS NULL
-            THEN (r.rec_btotal + r.rec_ctotal)
+            THEN NVL(p.TOTAL_COLLECTION,0)
             ELSE 0
         END
     ) AS offline_amount,
@@ -108,68 +141,68 @@ SELECT
     SUM(
         CASE
             WHEN rm.var_recmode_paycode = 'CSH'
-            THEN (r.rec_btotal + r.rec_ctotal)
+            THEN NVL(p.TOTAL_COLLECTION,0)
             ELSE 0
         END
     ) AS cash_amount,
+
+    /* ========================= */
+    /* MODE WISE PERCENTAGE */
+    /* ========================= */
+
     ROUND(
         CASE
-            WHEN SUM(r.rec_btotal + r.rec_ctotal) = 0 THEN 0
+            WHEN SUM(NVL(b.TOTAL_DEMAND,0)) = 0 THEN 0
             ELSE
                 SUM(
                     CASE
                         WHEN rm.var_recmode_paycode = 'ONL'
-                        THEN (r.rec_btotal + r.rec_ctotal)
+                        THEN NVL(p.TOTAL_COLLECTION,0)
                         ELSE 0
                     END
                 ) * 100 /
-                SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
+                SUM(NVL(b.TOTAL_DEMAND,0))
         END
     ,2) AS online_percentage,
 
     ROUND(
         CASE
-            WHEN SUM(r.rec_btotal + r.rec_ctotal) = 0 THEN 0
+            WHEN SUM(NVL(b.TOTAL_DEMAND,0)) = 0 THEN 0
             ELSE
                 SUM(
                     CASE
                         WHEN rm.var_recmode_paycode NOT IN ('ONL','CSH')
                              OR rm.var_recmode_paycode IS NULL
-                        THEN (r.rec_btotal + r.rec_ctotal)
+                        THEN NVL(p.TOTAL_COLLECTION,0)
                         ELSE 0
                     END
                 ) * 100 /
-                SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
+                SUM(NVL(b.TOTAL_DEMAND,0))
         END
     ,2) AS offline_percentage,
 
     ROUND(
         CASE
-            WHEN SUM(r.rec_btotal + r.rec_ctotal) = 0 THEN 0
+            WHEN SUM(NVL(b.TOTAL_DEMAND,0)) = 0 THEN 0
             ELSE
                 SUM(
                     CASE
                         WHEN rm.var_recmode_paycode = 'CSH'
-                        THEN (r.rec_btotal + r.rec_ctotal)
+                        THEN NVL(p.TOTAL_COLLECTION,0)
                         ELSE 0
                     END
                 ) * 100 /
-                SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
+                SUM(NVL(b.TOTAL_DEMAND,0))
         END
     ,2) AS cash_percentage
 
-FROM admins.dma_prop_mas p
+FROM REC p
 
-LEFT JOIN admins.dma_rec_mas r
-       ON p.prop_propno = r.prop_propno
-      AND p.ulbid = r.ulbid
+LEFT JOIN BILL b
+    ON p.ULBID = b.ULBID
 
-LEFT JOIN admins.dma_billprint_mas b
-       ON p.prop_propno = b.prop_propno
-      AND p.ulbid = b.ulbid
-
-LEFT JOIN prop.aoms_recmode_mas rm
-       ON rm.num_recmode_id = r.amttype`;
+LEFT JOIN prop.AOMS_RECMODE_MAS rm
+    ON rm.NUM_RECMODE_ID = p.AMTTYPE`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
@@ -249,54 +282,55 @@ GROUP BY c.VAR_CORPORATION_NAME`;
 const getCollectioninPerctRepo = async (req, res) => {
   try {
     const sql = `
-        SELECT
-      TO_CHAR(c.var_corporation_name) AS corporation,
-      SUM(b.billprint_btotaltax + b.billprint_ctotaltax) AS total_demand,
-      SUM(r.rec_btotal + r.rec_ctotal) AS total_collection,
-      SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-      - SUM(r.rec_btotal + r.rec_ctotal) AS total_outstanding,
-      ROUND(
-      CASE 
-      WHEN SUM(b.billprint_btotaltax + b.billprint_ctotaltax) = 0 THEN 0
-      ELSE 
-      SUM(r.rec_btotal + r.rec_ctotal) * 100 /
-      SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-      END
-              ,2) AS collection_percentage
-      FROM admins.dma_prop_mas p
-      LEFT JOIN admins.dma_rec_mas r
-      ON p.prop_propno = r.prop_propno
-      AND p.ulbid = r.ulbid
-      LEFT JOIN admins.dma_billprint_mas b
-      ON p.prop_propno = b.prop_propno
-      AND p.ulbid = b.ulbid
-      LEFT JOIN admins.aoma_corporation_mas c
-      ON c.num_corporation_id = p.ulbid
-      GROUP BY c.var_corporation_name
-      UNION ALL
-      SELECT
-      'TOTAL' AS corporation,
-      SUM(b.billprint_btotaltax + b.billprint_ctotaltax) AS total_demand,
-      SUM(r.rec_btotal + r.rec_ctotal) AS total_collection,
-      SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-      - SUM(r.rec_btotal + r.rec_ctotal) AS total_outstanding,
-      ROUND(
-      CASE 
-      WHEN SUM(b.billprint_btotaltax + b.billprint_ctotaltax) = 0 THEN 0
-      ELSE 
-      SUM(r.rec_btotal + r.rec_ctotal) * 100 /
-      SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-      END
-      ,2) AS collection_percentage
-      FROM admins.dma_prop_mas p
-      LEFT JOIN admins.dma_rec_mas r
-      ON p.prop_propno = r.prop_propno
-      AND p.ulbid = r.ulbid
-      LEFT JOIN admins.dma_billprint_mas b
-      ON p.prop_propno = b.prop_propno
-      AND p.ulbid = b.ulbid
-      LEFT JOIN admins.aoma_corporation_mas c
-      ON c.num_corporation_id = p.ulbid`;
+        WITH BILL AS
+(
+    SELECT
+        ULBID,
+        SUM(NVL(BILLPRINT_BTOTALTAX,0)) BTAX,
+        SUM(NVL(BILLPRINT_CTOTALTAX,0)) CTAX
+    FROM ADMINS.DMA_BILLPRINT_MAS
+    GROUP BY ULBID
+),
+REC AS
+(
+    SELECT
+        ULBID,
+        SUM(NVL(REC_BTOTAL,0)) BTOTAL,
+        SUM(NVL(REC_CTOTAL,0)) CTOTAL
+    FROM ADMINS.DMA_REC_MAS
+    GROUP BY ULBID
+)
+SELECT
+    NVL(c.var_corporation_name,'TOTAL') AS Corporation,
+
+    ROUND(SUM(NVL(BTAX,0)+NVL(CTAX,0))/10000000,2) AS Total_Demand,
+
+    ROUND(SUM(NVL(BTOTAL,0)+NVL(CTOTAL,0))/10000000,2) AS Total_Collection,
+
+    ROUND(
+        SUM((NVL(BTAX,0)+NVL(CTAX,0))
+        -(NVL(BTOTAL,0)+NVL(CTOTAL,0)))/10000000
+    ,2) AS Total_Outstanding,
+
+    ROUND(
+        SUM(NVL(BTOTAL,0)+NVL(CTOTAL,0))
+        / NULLIF(SUM(NVL(BTAX,0)+NVL(CTAX,0)),0) * 100
+    ,2) AS Collection_Percentage
+
+FROM BILL b
+FULL OUTER JOIN REC r
+    ON b.ULBID = r.ULBID
+JOIN ADMINS.AOMA_CORPORATION_MAS c
+    ON NVL(b.ULBID,r.ULBID)=c.NUM_CORPORATION_ID
+
+GROUP BY ROLLUP(c.var_corporation_name)
+
+ORDER BY
+    CASE
+        WHEN c.var_corporation_name IS NULL THEN 1
+        ELSE 0
+    END,
+    c.var_corporation_name`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
@@ -320,37 +354,61 @@ const getCollectioninPerctRepo = async (req, res) => {
 const getTotalPerfCorpbyCollRepo = async (req, res) => {
   try {
     const sql = `
-      SELECT
-     /* CORPORATION NAME*/
-    TO_CHAR(c.var_corporation_name) AS corporation,
-    /* TOTALS */
-    SUM(b.billprint_btotaltax + b.billprint_ctotaltax) AS total_demand,
- 
-    SUM(r.rec_btotal + r.rec_ctotal) AS total_collection,
- 
-    SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-      - SUM(r.rec_btotal + r.rec_ctotal) AS total_outstanding,
- 
-  /* OVERALL % */
-    ROUND(
-        CASE
-            WHEN SUM(b.billprint_btotaltax + b.billprint_ctotaltax) = 0 THEN 0
-            ELSE
-                SUM(r.rec_btotal + r.rec_ctotal) * 100 /
-                SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-        END,
-    2) AS collection_percentage
-FROM admins.dma_prop_mas p
-LEFT JOIN admins.dma_rec_mas r
-       ON p.prop_propno = r.prop_propno
-      AND p.ulbid = r.ulbid
-LEFT JOIN admins.dma_billprint_mas b
-       ON p.prop_propno = b.prop_propno
-      AND p.ulbid = b.ulbid
-LEFT JOIN admins.aoma_corporation_mas c
-       ON c.num_corporation_id = p.ulbid
-GROUP BY c.var_corporation_name
-ORDER BY collection_percentage DESC NULLS LAST fetch first 5 rows only`;
+    WITH BILL AS
+(
+    SELECT
+        ULBID,
+        SUM(BILLPRINT_BTOTALTAX) AS BTAX,
+        SUM(BILLPRINT_CTOTALTAX) AS CTAX
+    FROM ADMINS.DMA_BILLPRINT_MAS
+    GROUP BY ULBID
+),
+REC AS
+(
+    SELECT
+        ULBID,
+        SUM(REC_BTOTAL) AS BTOTAL,
+        SUM(REC_CTOTAL) AS CTOTAL
+    FROM ADMINS.DMA_REC_MAS
+    GROUP BY ULBID
+)
+SELECT
+    corporation,
+    total_demand,
+    total_collection,
+    total_outstanding,
+    collection_percentage
+FROM
+(
+    SELECT
+        c.var_corporation_name AS corporation,
+
+        SUM(BTAX + CTAX) AS total_demand,
+
+        SUM(BTOTAL + CTOTAL) AS total_collection,
+
+        SUM(BTAX + CTAX) - SUM(BTOTAL + CTOTAL) AS total_outstanding,
+
+        ROUND(
+            CASE
+                WHEN SUM(BTAX + CTAX) = 0 THEN 0
+                ELSE
+                    SUM(BTOTAL + CTOTAL) * 100 /
+                    SUM(BTAX + CTAX)
+            END,
+        2) AS collection_percentage
+
+    FROM REC p
+
+    LEFT JOIN BILL b
+           ON p.ULBID = b.ULBID
+
+    LEFT JOIN ADMINS.AOMA_CORPORATION_MAS c
+           ON c.NUM_CORPORATION_ID = p.ULBID
+
+    GROUP BY c.var_corporation_name
+)
+ORDER BY collection_percentage desc fetch first 5 rows only`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
@@ -374,37 +432,61 @@ res.json({
 const getTotalPerfCorpCollectionRepo = async (req, res) => {
   try {
     const sql = `
-                SELECT
-     /* CORPORATION NAME*/
-    TO_CHAR(c.var_corporation_name) AS corporation,
-    /* TOTALS */
-    SUM(b.billprint_btotaltax + b.billprint_ctotaltax) AS total_demand,
- 
-    SUM(r.rec_btotal + r.rec_ctotal) AS total_collection,
- 
-    SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-      - SUM(r.rec_btotal + r.rec_ctotal) AS total_outstanding,
- 
-  /* OVERALL % */
-    ROUND(
-        CASE
-            WHEN SUM(b.billprint_btotaltax + b.billprint_ctotaltax) = 0 THEN 0
-            ELSE
-                SUM(r.rec_btotal + r.rec_ctotal) * 100 /
-                SUM(b.billprint_btotaltax + b.billprint_ctotaltax)
-        END,
-    2) AS collection_percentage
-FROM admins.dma_prop_mas p
-LEFT JOIN admins.dma_rec_mas r
-       ON p.prop_propno = r.prop_propno
-      AND p.ulbid = r.ulbid
-LEFT JOIN admins.dma_billprint_mas b
-       ON p.prop_propno = b.prop_propno
-      AND p.ulbid = b.ulbid
-LEFT JOIN admins.aoma_corporation_mas c
-       ON c.num_corporation_id = p.ulbid
-GROUP BY c.var_corporation_name
-ORDER BY collection_percentage DESC NULLS LAST  fetch first 5 rows only`;
+               WITH BILL AS
+(
+    SELECT
+        ULBID,
+        SUM(BILLPRINT_BTOTALTAX) AS BTAX,
+        SUM(BILLPRINT_CTOTALTAX) AS CTAX
+    FROM ADMINS.DMA_BILLPRINT_MAS
+    GROUP BY ULBID
+),
+REC AS
+(
+    SELECT
+        ULBID,
+        SUM(REC_BTOTAL) AS BTOTAL,
+        SUM(REC_CTOTAL) AS CTOTAL
+    FROM ADMINS.DMA_REC_MAS
+    GROUP BY ULBID
+)
+SELECT
+    corporation,
+    total_demand,
+    total_collection,
+    total_outstanding,
+    collection_percentage
+FROM
+(
+    SELECT
+        c.var_corporation_name AS corporation,
+
+        SUM(BTAX + CTAX) AS total_demand,
+
+        SUM(BTOTAL + CTOTAL) AS total_collection,
+
+        SUM(BTAX + CTAX) - SUM(BTOTAL + CTOTAL) AS total_outstanding,
+
+        ROUND(
+            CASE
+                WHEN SUM(BTAX + CTAX) = 0 THEN 0
+                ELSE
+                    SUM(BTOTAL + CTOTAL) * 100 /
+                    SUM(BTAX + CTAX)
+            END,
+        2) AS collection_percentage
+
+    FROM REC p
+
+    LEFT JOIN BILL b
+           ON p.ULBID = b.ULBID
+
+    LEFT JOIN ADMINS.AOMA_CORPORATION_MAS c
+           ON c.NUM_CORPORATION_ID = p.ULBID
+
+    GROUP BY c.var_corporation_name
+)
+ORDER BY collection_percentage desc fetch first 5 rows only`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
