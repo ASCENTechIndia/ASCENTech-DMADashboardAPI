@@ -282,12 +282,12 @@ GROUP BY c.VAR_CORPORATION_NAME`;
 const getCollectioninPerctRepo = async (req, res) => {
   try {
     const sql = `
-        WITH BILL AS
+      WITH BILL AS
 (
     SELECT
         ULBID,
-        SUM(NVL(BILLPRINT_BTOTALTAX,0)) BTAX,
-        SUM(NVL(BILLPRINT_CTOTALTAX,0)) CTAX
+        SUM(NVL(BILLPRINT_BTOTALTAX,0)) AS BTAX,
+        SUM(NVL(BILLPRINT_CTOTALTAX,0)) AS CTAX
     FROM ADMINS.DMA_BILLPRINT_MAS
     GROUP BY ULBID
 ),
@@ -295,42 +295,44 @@ REC AS
 (
     SELECT
         ULBID,
-        SUM(NVL(REC_BTOTAL,0)) BTOTAL,
-        SUM(NVL(REC_CTOTAL,0)) CTOTAL
+        SUM(NVL(REC_BTOTAL,0)) AS BTOTAL,
+        SUM(NVL(REC_CTOTAL,0)) AS CTOTAL
     FROM ADMINS.DMA_REC_MAS
     GROUP BY ULBID
 )
+
 SELECT
-    NVL(c.var_corporation_name,'TOTAL') AS Corporation,
+    NVL(c.VAR_CORPORATION_NAME,'TOTAL') AS Corporation,
 
-    ROUND(SUM(NVL(BTAX,0)+NVL(CTAX,0))/10000000,2) AS Total_Demand,
+    ROUND(SUM(NVL(B.BTAX,0)+NVL(B.CTAX,0))/10000000,2) AS Total_Demand,
 
-    ROUND(SUM(NVL(BTOTAL,0)+NVL(CTOTAL,0))/10000000,2) AS Total_Collection,
+    ROUND(SUM(NVL(R.BTOTAL,0)+NVL(R.CTOTAL,0))/10000000,2) AS Total_Collection,
 
     ROUND(
-        SUM((NVL(BTAX,0)+NVL(CTAX,0))
-        -(NVL(BTOTAL,0)+NVL(CTOTAL,0)))/10000000
+        SUM((NVL(B.BTAX,0)+NVL(B.CTAX,0))
+          - (NVL(R.BTOTAL,0)+NVL(R.CTOTAL,0)))/10000000
     ,2) AS Total_Outstanding,
 
     ROUND(
-        SUM(NVL(BTOTAL,0)+NVL(CTOTAL,0))
-        / NULLIF(SUM(NVL(BTAX,0)+NVL(CTAX,0)),0) * 100
+        SUM(NVL(R.BTOTAL,0)+NVL(R.CTOTAL,0))
+        *100/
+        NULLIF(SUM(NVL(B.BTAX,0)+NVL(B.CTAX,0)),0)
     ,2) AS Collection_Percentage
 
-FROM BILL b
-FULL OUTER JOIN REC r
-    ON b.ULBID = r.ULBID
-JOIN ADMINS.AOMA_CORPORATION_MAS c
-    ON NVL(b.ULBID,r.ULBID)=c.NUM_CORPORATION_ID
+FROM REC R
+LEFT JOIN BILL B
+       ON R.ULBID = B.ULBID
+LEFT JOIN ADMINS.AOMA_CORPORATION_MAS C
+       ON R.ULBID = C.NUM_CORPORATION_ID
 
-GROUP BY ROLLUP(c.var_corporation_name)
+GROUP BY ROLLUP(C.VAR_CORPORATION_NAME)
 
 ORDER BY
-    CASE
-        WHEN c.var_corporation_name IS NULL THEN 1
-        ELSE 0
-    END,
-    c.var_corporation_name`;
+CASE
+    WHEN C.VAR_CORPORATION_NAME IS NULL THEN 1
+    ELSE 0
+END,
+C.VAR_CORPORATION_NAME`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
