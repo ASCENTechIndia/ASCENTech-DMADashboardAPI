@@ -34,106 +34,18 @@ function daysInMonth(month, year) {
  */
 const fetchDashboardDataNew = async (req, res) => {
   try {
-//   const sql = `
-//     SELECT JSON_ARRAYAGG(
-//          JSON_OBJECT(
-//            'code' VALUE x.var_dasdboard_modulecode,
-//            'title' VALUE x.var_module_title,
-//            'colorcode' VALUE x.colorcode,
-//            'metrics' VALUE JSON_ARRAY(
-//                JSON_OBJECT(
-//                    'label' VALUE x.column1_label,
-//                    'value' VALUE x.total_column1
-//                    RETURNING CLOB
-//                ),
-//                JSON_OBJECT(
-//                    'label' VALUE x.column2_label,
-//                    'value' VALUE x.total_column2
-//                    RETURNING CLOB
-//                ),
-//                JSON_OBJECT(
-//                    'label' VALUE x.column3_label,
-//                    'value' VALUE x.total_column3
-//                    RETURNING CLOB
-//                )
-//                RETURNING CLOB
-//            )
-//            RETURNING CLOB
-//          )
-//          ORDER BY x.num_seqno
-//          RETURNING CLOB
-//        ) AS dashboard_json
-// FROM
-// (
-//     SELECT
-//         d.var_dasdboard_modulecode,
-//         m.var_module_title,
-//         m.num_seqno,
+    // const { ulbId } = req.body;
+    // if (!ulbId) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: "ulbId is required"
+    //   });
+    // }
 
-//         SUM(NVL(d.num_dasdboard_column1,0)) AS total_column1,
-
-//         SUM(NVL(d.num_dasdboard_column2,0)) AS total_column2,
-
-//         CASE
-//             WHEN d.var_dasdboard_modulecode IN ('PTAX','WAT','CFC','MRKT')
-//             THEN ROUND(
-//                      SUM(NVL(d.num_dasdboard_column2,0))
-//                      * 100 /
-//                      NULLIF(SUM(NVL(d.num_dasdboard_column1,0)),0),
-//                      2
-//                  )
-//             ELSE
-//                 SUM(NVL(d.num_dasdboard_column3,0))
-//         END AS total_column3,
-
-//         MAX(c1.var_column_label) AS column1_label,
-//         MAX(c2.var_column_label) AS column2_label,
-//         MAX(c3.var_column_label) AS column3_label,
-
-//         CASE
-//             WHEN MAX(SYSDATE - d.dat_dasdboard_transdt) <= 30 THEN 'GREEN'
-//             WHEN MAX(SYSDATE - d.dat_dasdboard_transdt) > 30 THEN 'YELLOW'
-//             ELSE 'Light_Coral'
-//         END AS colorcode
-
-//     FROM admins.aoms_dashboard_det d
-
-//     INNER JOIN admins.aoms_dashboard_module_mst m
-//         ON m.var_module_code = d.var_dasdboard_modulecode
-//        AND d.num_dashboard_ulbid = m.num_ulbid
-
-//     LEFT JOIN admins.aoms_dashboard_module_column_mst c1
-//         ON c1.var_module_code = d.var_dasdboard_modulecode
-//        AND c1.num_column_no = 1
-//        AND c1.chr_active = 'Y'
-
-//     LEFT JOIN admins.aoms_dashboard_module_column_mst c2
-//         ON c2.var_module_code = d.var_dasdboard_modulecode
-//        AND c2.num_column_no = 2
-//        AND c2.chr_active = 'Y'
-
-//     LEFT JOIN admins.aoms_dashboard_module_column_mst c3
-//         ON c3.var_module_code = d.var_dasdboard_modulecode
-//        AND c3.num_column_no = 3
-//        AND c3.chr_active = 'Y'
-
-//     WHERE m.chr_active = 'Y'
-//     -- AND d.num_dashboard_ulbid = 890
-
-//     GROUP BY
-//         d.var_dasdboard_modulecode,
-//         m.var_module_title,
-//         m.num_seqno
-// order by case when var_dasdboard_modulecode='RTS' then 1 
-//      when var_dasdboard_modulecode='PTAX' then 2
-//       when var_dasdboard_modulecode='WAT' then 3
-//        when var_dasdboard_modulecode='CFC' then 4
-//        else 5 end 
-// ) x  `;
-  
     const sql = `
-    SELECT JSON_ARRAYAGG(
+      SELECT JSON_ARRAYAGG(
          JSON_OBJECT(
+         'link' VALUE x.var_module_url,
            'code' VALUE x.var_dasdboard_modulecode,
            'title' VALUE x.var_module_title,
            'colorcode' VALUE x.colorcode,
@@ -157,16 +69,24 @@ const fetchDashboardDataNew = async (req, res) => {
            )
            RETURNING CLOB
          )
-         ORDER BY x.num_seqno
-         RETURNING CLOB
+          ORDER BY
+        CASE
+            WHEN NVL(x.total_column1,0) = 0
+             AND NVL(x.total_column2,0) = 0
+             AND NVL(x.total_column3,0) = 0
+            THEN 1
+            ELSE 0
+        END,
+        x.num_module_orderby
+    RETURNING CLOB
        ) AS dashboard_json
 FROM
 (
     SELECT
         d.var_dasdboard_modulecode,
         m.var_module_title,
-        m.num_seqno,
-
+        m.num_seqno,  m.num_module_orderby,
+        m.var_module_url,
         SUM(NVL(d.num_dasdboard_column1,0)) AS total_column1,
 
         SUM(NVL(d.num_dasdboard_column2,0)) AS total_column2,
@@ -220,11 +140,12 @@ FROM
    GROUP BY
         d.var_dasdboard_modulecode,
         m.var_module_title,
-        m.num_seqno,num_module_orderby
+        m.num_seqno,m.num_module_orderby, m.var_module_url
 order by num_module_orderby
-) x  `;
+) x
+	`;
 
-const result = await executeQuery(sql, {}, {
+    const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
 
@@ -262,7 +183,6 @@ const result = await executeQuery(sql, {}, {
     });
   }
 };
-
 /**
  * Fetch RTS ULB Wise data with application status breakdown
  * @param {Object} req - Express request object
@@ -296,6 +216,7 @@ const fetchRTSULBWiseData = async (req, res) => {
              SUM (payment_pending) payment_pending, SUM (total) total
         FROM dashbord
              INNER JOIN admins.aoma_corporation_mas ON num_corporation_id = ulbid
+			  WHERE ulbid <> 5 
       GROUP BY var_corporation_shortname, num_corporation_id, var_corporation_name
       ORDER BY var_corporation_name
     `;
