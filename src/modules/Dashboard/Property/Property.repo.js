@@ -87,7 +87,6 @@ LEFT JOIN REC R
     });
   }
 };
-
 /**
  * Fetch RTS ULB Wise data with application status breakdown
  * @param {Object} req - Express request object
@@ -116,11 +115,6 @@ REC AS
     GROUP BY ULBID, AMTTYPE
 )
 SELECT
-
-    /* ========================= */
-    /* MODE WISE AMOUNT */
-    /* ========================= */
-
     SUM(
         CASE
             WHEN rm.var_recmode_paycode = 'ONL'
@@ -145,11 +139,6 @@ SELECT
             ELSE 0
         END
     ) AS cash_amount,
-
-    /* ========================= */
-    /* MODE WISE PERCENTAGE */
-    /* ========================= */
-
     ROUND(
         CASE
             WHEN SUM(NVL(b.TOTAL_DEMAND,0)) = 0 THEN 0
@@ -234,12 +223,11 @@ res.json({
   }
 };
 
-
 const getPropertySummaryRepo = async (req, res) => {
   try {
     const sql = `
   SELECT
-    c.VAR_CORPORATION_NAME AS Corporation,
+    c.var_corp_mshortname AS Corporation,
     COUNT(CASE WHEN UPPER(p.PROPTYPE) = 'RES'  THEN 1 END) AS Residential,
     COUNT(CASE WHEN UPPER(p.PROPTYPE) = 'NRES' THEN 1 END) AS Commercial,
     COUNT(CASE WHEN UPPER(p.PROPTYPE) = 'MIX'  THEN 1 END) AS Mixed,
@@ -258,7 +246,7 @@ const getPropertySummaryRepo = async (req, res) => {
                           THEN 1 END),0)
     ,2) AS Mixed_Percentage FROM admins.dma_prop_mas p
 LEFT JOIN admins.aoma_corporation_mas c ON c.NUM_CORPORATION_ID = p.ULBID
-GROUP BY c.VAR_CORPORATION_NAME`;
+GROUP BY c.var_corp_mshortname`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
@@ -302,7 +290,7 @@ REC AS
 )
 
 SELECT
-    NVL(c.VAR_CORPORATION_NAME,'TOTAL') AS Corporation,
+    NVL(c.var_corp_mshortname,'TOTAL') AS Corporation,
 
     ROUND(SUM(NVL(B.BTAX,0)+NVL(B.CTAX,0))/10000000,2) AS Total_Demand,
 
@@ -325,14 +313,14 @@ LEFT JOIN BILL B
 LEFT JOIN ADMINS.AOMA_CORPORATION_MAS C
        ON R.ULBID = C.NUM_CORPORATION_ID
 
-GROUP BY ROLLUP(C.VAR_CORPORATION_NAME)
+GROUP BY ROLLUP(C.var_corp_mshortname)
 
 ORDER BY
 CASE
-    WHEN C.VAR_CORPORATION_NAME IS NULL THEN 1
+    WHEN C.var_corp_mshortname IS NULL THEN 1
     ELSE 0
 END,
-C.VAR_CORPORATION_NAME`;
+C.var_corp_mshortname`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
@@ -356,7 +344,7 @@ C.VAR_CORPORATION_NAME`;
 const getTotalPerfCorpbyCollRepo = async (req, res) => {
   try {
     const sql = `
-    WITH BILL AS
+     WITH BILL AS
 (
     SELECT
         ULBID,
@@ -434,7 +422,7 @@ res.json({
 const getTotalPerfCorpCollectionRepo = async (req, res) => {
   try {
     const sql = `
-               WITH BILL AS
+                WITH BILL AS
 (
     SELECT
         ULBID,
@@ -511,33 +499,7 @@ res.json({
   }
 };
 
-const getTodaysCollectionRepo = async (req, res) => {
-  try {
-    const sql = `
-        select  *  from   admins.vw_TodatyColl_Dma`;
-    const result = await executeQuery(sql, {}, {
-      outFormat: oracledb.OUT_FORMAT_OBJECT
-    });
-
-    if (!result.rows || result.rows.length === 0) {
-      return res.json({ success: true, data: [] });
-    }
-
-res.json({
-  success: true,
-  data: result.rows
-});
-
-  } catch (err) {
-    console.error("Todays Collection Fetch Error:", err);
-    res.status(500).json({
-      success: false,
-       message: err.message
-    });
-  }
-};
-
 module.exports = {
   getTilesDataRepo, getModewiseCollectionRepo, getPropertySummaryRepo, getCollectioninPerctRepo,
-  getTotalPerfCorpbyCollRepo, getTotalPerfCorpCollectionRepo, getTodaysCollectionRepo
+  getTotalPerfCorpbyCollRepo, getTotalPerfCorpCollectionRepo
 };
