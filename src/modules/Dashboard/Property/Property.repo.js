@@ -246,7 +246,7 @@ const getPropertySummaryRepo = async (req, res) => {
                           THEN 1 END),0)
     ,2) AS Mixed_Percentage FROM admins.dma_prop_mas p
 LEFT JOIN admins.aoma_corporation_mas c ON c.NUM_CORPORATION_ID = p.ULBID
-GROUP BY c.var_corp_mshortname`;
+GROUP BY c.var_corp_mshortname order by total desc`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
@@ -316,11 +316,12 @@ LEFT JOIN ADMINS.AOMA_CORPORATION_MAS C
 GROUP BY ROLLUP(C.var_corp_mshortname)
 
 ORDER BY
-CASE
-    WHEN C.var_corp_mshortname IS NULL THEN 1
-    ELSE 0
-END,
-C.var_corp_mshortname`;
+// CASE
+//     WHEN C.var_corp_mshortname IS NULL THEN 1
+//     ELSE 0
+// END,
+// C.var_corp_mshortname
+collection_percentage desc`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
@@ -371,7 +372,7 @@ SELECT
 FROM
 (
     SELECT
-        c.var_corporation_name AS corporation,
+        c.var_corp_mshortname AS corporation,
 
         SUM(BTAX + CTAX) AS total_demand,
 
@@ -396,9 +397,9 @@ FROM
     LEFT JOIN ADMINS.AOMA_CORPORATION_MAS c
            ON c.NUM_CORPORATION_ID = p.ULBID
 
-    GROUP BY c.var_corporation_name
+    GROUP BY c.var_corp_mshortname
 )
-ORDER BY collection_percentage desc fetch first 5 rows only`;
+ORDER BY collection_percentage desc NULLS LAST  fetch first 5 rows only`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
@@ -449,7 +450,7 @@ SELECT
 FROM
 (
     SELECT
-        c.var_corporation_name AS corporation,
+        c.var_corp_mshortname AS corporation,
 
         SUM(BTAX + CTAX) AS total_demand,
 
@@ -474,9 +475,9 @@ FROM
     LEFT JOIN ADMINS.AOMA_CORPORATION_MAS c
            ON c.NUM_CORPORATION_ID = p.ULBID
 
-    GROUP BY c.var_corporation_name
+    GROUP BY c.var_corp_mshortname
 )
-ORDER BY collection_percentage desc fetch first 5 rows only`;
+ORDER BY total_collection desc NULLS LAST  fetch first 5 rows only`;
     const result = await executeQuery(sql, {}, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
