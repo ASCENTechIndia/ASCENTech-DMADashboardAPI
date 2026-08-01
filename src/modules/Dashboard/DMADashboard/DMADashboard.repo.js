@@ -34,13 +34,14 @@ function daysInMonth(month, year) {
  */
 const fetchDashboardDataNew = async (req, res) => {
   try {
-    // const { ulbId } = req.body;
-    // if (!ulbId) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: "ulbId is required"
-    //   });
-    // }
+    const { ulbId } = req.query;
+
+    if (!ulbId) {
+      return res.status(400).json({
+        success: false,
+        message: "ulbId is required"
+      });
+    }
 
     const sql = `
       SELECT JSON_ARRAYAGG(
@@ -135,7 +136,7 @@ FROM
        AND c3.chr_active = 'Y'
 
     WHERE m.chr_active = 'Y'
-    -- AND d.num_dashboard_ulbid = 890
+      AND d.num_dashboard_ulbid = :ulbId
 
    GROUP BY
         d.var_dasdboard_modulecode,
@@ -145,7 +146,7 @@ order by num_module_orderby
 ) x
 	`;
 
-    const result = await executeQuery(sql, {}, {
+    const result = await executeQuery(sql, { ulbId }, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
 
@@ -177,6 +178,43 @@ order by num_module_orderby
 
   } catch (err) {
     console.error("Dashboard Fetch Error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
+    });
+  }
+};
+
+/**
+ * Fetch ULB (Corporation) list for dropdown
+ * Filters only Municipal Corporations
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const fetchULBList = async (req, res) => {
+  try {
+    const sql = `
+      SELECT
+        num_corporation_id   AS corpid,
+        var_corporation_name AS marname,
+        var_corporation_mname AS engname,
+        var_corporation_code AS corpcode
+      FROM admins.aoma_corporation_mas
+      WHERE LOWER(var_corporation_mname) LIKE '%corporation%'
+         OR var_corporation_name LIKE '%महानगरपालिका%'
+      ORDER BY var_corporation_mname ASC
+    `;
+
+    const result = await executeQuery(sql, {}, {
+      outFormat: oracledb.OUT_FORMAT_OBJECT
+    });
+
+    const data = result.rows || [];
+
+    res.json({ success: true, data });
+
+  } catch (err) {
+    console.error("ULB List Fetch Error:", err);
     res.status(500).json({
       success: false,
       message: "Internal Server Error"
@@ -442,6 +480,7 @@ const fetchRTSStatusWiseData = async (req, res) => {
 
 module.exports = {
   fetchDashboardDataNew,
+  fetchULBList,
   fetchRTSULBWiseData,
   fetchRTSULBDeptWiseData,
   fetchRTSULBServiceWiseData,

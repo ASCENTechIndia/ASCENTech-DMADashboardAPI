@@ -1,8 +1,7 @@
 const { z } = require('zod');
 
 const dmaDashboardQuerySchema = z.object({
-  // Optional filters for DMA Dashboard
-  // ulbId: z.coerce.number().int().positive().optional(),
+  ulbId: z.coerce.number().int().positive({ message: "ulbId must be a positive integer" })
 }).passthrough();
 
 /**
@@ -29,11 +28,18 @@ const rtsStatusWiseQuerySchema = z.object({
 
 
 /**
+ * Schema for ULB (Corporation) list fetching
+ * No parameters required
+ */
+const ulbListQuerySchema = z.object({}).passthrough();
+
+/**
  * Schema for DMA Dashboard data fetching
  * Returns modules with metrics and color-coded status based on data freshness
  */
 module.exports = {
   dmaDashboardQuerySchema,
+  ulbListQuerySchema,
   rtsULBWiseQuerySchema,
   rtsULBDeptWiseQuerySchema,
   rtsULBServiceWiseQuerySchema,
