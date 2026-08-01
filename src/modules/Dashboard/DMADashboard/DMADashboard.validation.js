@@ -1,7 +1,7 @@
 const { z } = require('zod');
 
 const dmaDashboardQuerySchema = z.object({
-  ulbId: z.coerce.number().int().positive({ message: "ulbId must be a positive integer" })
+  ulbId: z.union([z.coerce.number().int().positive(), z.literal('ALL'), z.literal('')]).optional()
 }).passthrough();
 
 /**

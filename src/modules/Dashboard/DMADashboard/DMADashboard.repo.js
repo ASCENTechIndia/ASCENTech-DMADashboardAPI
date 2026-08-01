@@ -36,11 +36,12 @@ const fetchDashboardDataNew = async (req, res) => {
   try {
     const { ulbId } = req.query;
 
-    if (!ulbId) {
-      return res.status(400).json({
-        success: false,
-        message: "ulbId is required"
-      });
+    let ulbCondition = "";
+    const params = {};
+
+    if (ulbId && ulbId !== 'ALL') {
+      ulbCondition = "AND d.num_dashboard_ulbid = :ulbId";
+      params.ulbId = ulbId;
     }
 
     const sql = `
@@ -136,7 +137,7 @@ FROM
        AND c3.chr_active = 'Y'
 
     WHERE m.chr_active = 'Y'
-      AND d.num_dashboard_ulbid = :ulbId
+      ${ulbCondition}
 
    GROUP BY
         d.var_dasdboard_modulecode,
@@ -146,7 +147,7 @@ order by num_module_orderby
 ) x
 	`;
 
-    const result = await executeQuery(sql, { ulbId }, {
+    const result = await executeQuery(sql, params, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
 
