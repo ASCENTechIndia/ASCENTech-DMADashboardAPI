@@ -1,4 +1,4 @@
-const { fetchDashboardDataNew, fetchRTSULBWiseData, fetchRTSULBDeptWiseData, fetchRTSULBServiceWiseData, fetchRTSStatusWiseData } = require('./DMADashboard.repo');
+const { fetchDashboardDataNew, fetchULBList, fetchRTSULBWiseData, fetchRTSULBDeptWiseData, fetchRTSULBServiceWiseData, fetchRTSStatusWiseData } = require('./DMADashboard.repo');
 
 /**
  * Service to fetch dashboard data
@@ -7,6 +7,15 @@ const { fetchDashboardDataNew, fetchRTSULBWiseData, fetchRTSULBDeptWiseData, fet
  */
 async function fetchDashboardData(req, res) {
   return await fetchDashboardDataNew(req, res);
+}
+
+/**
+ * Service to fetch ULB (Corporation) list
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function fetchULBListData(req, res) {
+  return await fetchULBList(req, res);
 }
 
 /**
@@ -47,6 +56,7 @@ async function fetchRTSStatusWise(req, res) {
 
 module.exports = {
   fetchDashboardData,
+  fetchULBListData,
   fetchRTSULBWise,
   fetchRTSULBDeptWise,
   fetchRTSULBServiceWise,

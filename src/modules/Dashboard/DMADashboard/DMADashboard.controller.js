@@ -1,4 +1,4 @@
-const { fetchDashboardData, fetchRTSULBWise, fetchRTSULBDeptWise, fetchRTSULBServiceWise, fetchRTSStatusWise } = require('./DMADashboard.service');
+const { fetchDashboardData, fetchULBListData, fetchRTSULBWise, fetchRTSULBDeptWise, fetchRTSULBServiceWise, fetchRTSStatusWise } = require('./DMADashboard.service');
 const { logApiSuccess, logApiError } = require('../../../utils/log');
 
 /**
@@ -13,6 +13,22 @@ async function dmaDashboardHandler(req, res, next) {
     return await fetchDashboardData(req, res);
   } catch (error) {
     logApiError(req, 500, error.message, 'DMA Dashboard error');
+    return next(error);
+  }
+}
+
+/**
+ * Controller handler for fetching ULB (Corporation) list
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware
+ */
+async function ulbListHandler(req, res, next) {
+  try {
+    logApiSuccess(req, 200, {}, 'ULB List request initiated');
+    return await fetchULBListData(req, res);
+  } catch (error) {
+    logApiError(req, 500, error.message, 'ULB List fetch error');
     return next(error);
   }
 }
@@ -83,6 +99,7 @@ async function rtsStatusWiseHandler(req, res, next) {
 
 module.exports = {
   dmaDashboardHandler,
+  ulbListHandler,
   rtsULBWiseHandler,
   rtsULBDeptWiseHandler,
   rtsULBServiceWiseHandler,

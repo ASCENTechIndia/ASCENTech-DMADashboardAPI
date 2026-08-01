@@ -1,8 +1,8 @@
 const express = require('express');
 const validate = require('../../../middleware/validate.middleware');
 const { authRequired } = require('../../../middleware/auth');
-const { dmaDashboardQuerySchema, rtsULBWiseQuerySchema, rtsULBDeptWiseQuerySchema, rtsULBServiceWiseQuerySchema, rtsStatusWiseQuerySchema } = require('./DMADashboard.validation');
-const { dmaDashboardHandler, rtsULBWiseHandler, rtsULBDeptWiseHandler, rtsULBServiceWiseHandler, rtsStatusWiseHandler } = require('./DMADashboard.controller');
+const { dmaDashboardQuerySchema, ulbListQuerySchema, rtsULBWiseQuerySchema, rtsULBDeptWiseQuerySchema, rtsULBServiceWiseQuerySchema, rtsStatusWiseQuerySchema } = require('./DMADashboard.validation');
+const { dmaDashboardHandler, ulbListHandler, rtsULBWiseHandler, rtsULBDeptWiseHandler, rtsULBServiceWiseHandler, rtsStatusWiseHandler } = require('./DMADashboard.controller');
 
 
 const router = express.Router();
@@ -15,6 +15,16 @@ router.get(
   '/DashboardDataNew',
   validate(dmaDashboardQuerySchema, { source: 'query' }),
   dmaDashboardHandler
+);
+
+/**
+ * GET /api/dashboard/ULBList
+ * Fetch ULB (Corporation) list for dropdown
+ */
+router.get(
+  '/ULBList',
+  validate(ulbListQuerySchema, { source: 'query' }),
+  ulbListHandler
 );
 
 /**
