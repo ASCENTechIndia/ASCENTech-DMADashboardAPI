@@ -229,6 +229,15 @@ const fetchULBList = async (req, res) => {
  */
 const fetchRTSULBWiseData = async (req, res) => {
   try {
+    const ulbId = req.query.ulbId;
+    let whereClause = "WHERE ulbid <> 5";
+    const binds = {};
+
+    if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
+      whereClause += " AND ulbid = :ulbId";
+      binds.ulbId = Number(ulbId);
+    }
+
     const sql = `
       WITH dashbord
            AS (SELECT var_dept_engname, var_service_eng_name,
@@ -255,12 +264,12 @@ const fetchRTSULBWiseData = async (req, res) => {
              SUM (payment_pending) payment_pending, SUM (total) total
         FROM dashbord
              INNER JOIN admins.aoma_corporation_mas ON num_corporation_id = ulbid
-			  WHERE ulbid <> 5 
+			  ${whereClause} 
       GROUP BY var_corporation_shortname, num_corporation_id, var_corporation_name
       ORDER BY var_corporation_name
     `;
 
-    const result = await executeQuery(sql, {}, {
+    const result = await executeQuery(sql, binds, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
 
