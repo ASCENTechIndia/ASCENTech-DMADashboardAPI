@@ -26,6 +26,12 @@ const rtsStatusWiseQuerySchema = z.object({
   ulbId: z.coerce.number().int().positive({ message: "ulbId must be a positive integer" }).optional()
 }).passthrough();
 
+const rtsApplicationDetailQuerySchema = z.object({
+  dept: z.coerce.number().int().positive({ message: "dept must be a positive integer" }),
+  status: z.string({ message: "status is required" }),
+  ulbId: z.coerce.number().int().positive({ message: "ulbId must be a positive integer" }).optional()
+}).passthrough();
+
 
 /**
  * Schema for ULB (Corporation) list fetching
@@ -44,4 +50,5 @@ module.exports = {
   rtsULBDeptWiseQuerySchema,
   rtsULBServiceWiseQuerySchema,
   rtsStatusWiseQuerySchema,
+  rtsApplicationDetailQuerySchema,
 };

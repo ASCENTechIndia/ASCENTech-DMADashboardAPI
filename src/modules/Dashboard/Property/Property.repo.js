@@ -34,6 +34,14 @@ function daysInMonth(month, year) {
  */
 const getTilesDataRepo = async (req, res) => {
   try {
+    const ulbId = req.query.ulbId;
+    let ulbFilter = "";
+    const binds = {};
+    if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
+      ulbFilter = "WHERE ULBID = :ulbId";
+      binds.ulbId = Number(ulbId);
+    }
+
  const sql = `
       WITH BILL AS
 (
@@ -41,6 +49,7 @@ const getTilesDataRepo = async (req, res) => {
         ULBID,
         SUM(BILLPRINT_BTOTALTAX + BILLPRINT_CTOTALTAX) AS TOTAL_DEMAND
     FROM admins.DMA_BILLPRINT_MAS
+    ${ulbFilter}
     GROUP BY ULBID
 ),
 REC AS
@@ -49,6 +58,7 @@ REC AS
         ULBID,
         SUM(REC_BTOTAL + REC_CTOTAL) AS TOTAL_COLLECTION
     FROM admins.DMA_REC_MAS
+    ${ulbFilter}
     GROUP BY ULBID
 )
 SELECT
@@ -66,7 +76,7 @@ LEFT JOIN BILL B
        ON P.ULBID = B.ULBID
 LEFT JOIN REC R
        ON P.ULBID = R.ULBID`;
-    const result = await executeQuery(sql, {}, {
+    const result = await executeQuery(sql, binds, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
 
@@ -96,6 +106,14 @@ LEFT JOIN REC R
 
 const getModewiseCollectionRepo = async (req, res) => {
   try {
+    const ulbId = req.query.ulbId;
+    let ulbFilter = "";
+    const binds = {};
+    if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
+      ulbFilter = "WHERE ULBID = :ulbId";
+      binds.ulbId = Number(ulbId);
+    }
+
     const sql = `
 WITH BILL AS
 (
@@ -103,6 +121,7 @@ WITH BILL AS
         ULBID,
         SUM(BILLPRINT_BTOTALTAX + BILLPRINT_CTOTALTAX) AS TOTAL_DEMAND
     FROM ADMINS.DMA_BILLPRINT_MAS
+    ${ulbFilter}
     GROUP BY ULBID
 ),
 REC AS
@@ -112,6 +131,7 @@ REC AS
         AMTTYPE,
         SUM(REC_BTOTAL + REC_CTOTAL) AS TOTAL_COLLECTION
     FROM ADMINS.DMA_REC_MAS
+    ${ulbFilter}
     GROUP BY ULBID, AMTTYPE
 )
 SELECT
@@ -192,7 +212,7 @@ LEFT JOIN BILL b
 
 LEFT JOIN prop.AOMS_RECMODE_MAS rm
     ON rm.NUM_RECMODE_ID = p.AMTTYPE`;
-    const result = await executeQuery(sql, {}, {
+    const result = await executeQuery(sql, binds, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
 
@@ -225,6 +245,14 @@ res.json({
 
 const getPropertySummaryRepo = async (req, res) => {
   try {
+    const ulbId = req.query.ulbId;
+    let ulbFilter = "";
+    const binds = {};
+    if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
+      ulbFilter = "WHERE p.ULBID = :ulbId";
+      binds.ulbId = Number(ulbId);
+    }
+
     const sql = `
   SELECT
     c.var_corp_mshortname AS Corporation,
@@ -246,8 +274,9 @@ const getPropertySummaryRepo = async (req, res) => {
                           THEN 1 END),0)
     ,2) AS Mixed_Percentage FROM admins.dma_prop_mas p
 LEFT JOIN admins.aoma_corporation_mas c ON c.NUM_CORPORATION_ID = p.ULBID
+${ulbFilter}
 GROUP BY c.var_corp_mshortname order by total desc`;
-    const result = await executeQuery(sql, {}, {
+    const result = await executeQuery(sql, binds, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
 
@@ -269,6 +298,14 @@ GROUP BY c.var_corp_mshortname order by total desc`;
 
 const getCollectioninPerctRepo = async (req, res) => {
   try {
+    const ulbId = req.query.ulbId;
+    let ulbFilter = "";
+    const binds = {};
+    if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
+      ulbFilter = "WHERE ULBID = :ulbId";
+      binds.ulbId = Number(ulbId);
+    }
+
     const sql = `
       WITH BILL AS
 (
@@ -277,6 +314,7 @@ const getCollectioninPerctRepo = async (req, res) => {
         SUM(NVL(BILLPRINT_BTOTALTAX,0)) AS BTAX,
         SUM(NVL(BILLPRINT_CTOTALTAX,0)) AS CTAX
     FROM ADMINS.DMA_BILLPRINT_MAS
+    ${ulbFilter}
     GROUP BY ULBID
 ),
 REC AS
@@ -286,6 +324,7 @@ REC AS
         SUM(NVL(REC_BTOTAL,0)) AS BTOTAL,
         SUM(NVL(REC_CTOTAL,0)) AS CTOTAL
     FROM ADMINS.DMA_REC_MAS
+    ${ulbFilter}
     GROUP BY ULBID
 )
 
@@ -322,7 +361,7 @@ ORDER BY
 // END,
 // C.var_corp_mshortname
 collection_percentage desc`;
-    const result = await executeQuery(sql, {}, {
+    const result = await executeQuery(sql, binds, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
 
@@ -344,6 +383,14 @@ collection_percentage desc`;
 
 const getTotalPerfCorpbyCollRepo = async (req, res) => {
   try {
+    const ulbId = req.query.ulbId;
+    let ulbFilter = "";
+    const binds = {};
+    if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
+      ulbFilter = "WHERE ULBID = :ulbId";
+      binds.ulbId = Number(ulbId);
+    }
+
     const sql = `
      WITH BILL AS
 (
@@ -352,6 +399,7 @@ const getTotalPerfCorpbyCollRepo = async (req, res) => {
         SUM(BILLPRINT_BTOTALTAX) AS BTAX,
         SUM(BILLPRINT_CTOTALTAX) AS CTAX
     FROM ADMINS.DMA_BILLPRINT_MAS
+    ${ulbFilter}
     GROUP BY ULBID
 ),
 REC AS
@@ -361,6 +409,7 @@ REC AS
         SUM(REC_BTOTAL) AS BTOTAL,
         SUM(REC_CTOTAL) AS CTOTAL
     FROM ADMINS.DMA_REC_MAS
+    ${ulbFilter}
     GROUP BY ULBID
 )
 SELECT
@@ -400,7 +449,7 @@ FROM
     GROUP BY c.var_corp_mshortname
 )
 ORDER BY collection_percentage desc NULLS LAST  fetch first 5 rows only`;
-    const result = await executeQuery(sql, {}, {
+    const result = await executeQuery(sql, binds, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
 
@@ -422,6 +471,14 @@ res.json({
 
 const getTotalPerfCorpCollectionRepo = async (req, res) => {
   try {
+    const ulbId = req.query.ulbId;
+    let ulbFilter = "";
+    const binds = {};
+    if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
+      ulbFilter = "WHERE ULBID = :ulbId";
+      binds.ulbId = Number(ulbId);
+    }
+
     const sql = `
                 WITH BILL AS
 (
@@ -430,6 +487,7 @@ const getTotalPerfCorpCollectionRepo = async (req, res) => {
         SUM(BILLPRINT_BTOTALTAX) AS BTAX,
         SUM(BILLPRINT_CTOTALTAX) AS CTAX
     FROM ADMINS.DMA_BILLPRINT_MAS
+    ${ulbFilter}
     GROUP BY ULBID
 ),
 REC AS
@@ -439,6 +497,7 @@ REC AS
         SUM(REC_BTOTAL) AS BTOTAL,
         SUM(REC_CTOTAL) AS CTOTAL
     FROM ADMINS.DMA_REC_MAS
+    ${ulbFilter}
     GROUP BY ULBID
 )
 SELECT
@@ -478,7 +537,7 @@ FROM
     GROUP BY c.var_corp_mshortname
 )
 ORDER BY total_collection desc NULLS LAST  fetch first 5 rows only`;
-    const result = await executeQuery(sql, {}, {
+    const result = await executeQuery(sql, binds, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
 

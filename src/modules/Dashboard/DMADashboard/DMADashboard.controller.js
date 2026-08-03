@@ -1,4 +1,4 @@
-const { fetchDashboardData, fetchULBListData, fetchRTSULBWise, fetchRTSULBDeptWise, fetchRTSULBServiceWise, fetchRTSStatusWise } = require('./DMADashboard.service');
+const { fetchDashboardData, fetchULBListData, fetchRTSULBWise, fetchRTSULBDeptWise, fetchRTSULBServiceWise, fetchRTSStatusWise, fetchRTSApplicationDetail } = require('./DMADashboard.service');
 const { logApiSuccess, logApiError } = require('../../../utils/log');
 
 /**
@@ -97,6 +97,22 @@ async function rtsStatusWiseHandler(req, res, next) {
   }
 }
 
+/**
+ * Controller handler for fetching RTS Application Detail data
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware
+ */
+async function rtsApplicationDetailHandler(req, res, next) {
+  try {
+    logApiSuccess(req, 200, {}, 'RTS Application Detail data request initiated');
+    return await fetchRTSApplicationDetail(req, res);
+  } catch (error) {
+    logApiError(req, 500, error.message, 'RTS Application Detail data error');
+    return next(error);
+  }
+}
+
 module.exports = {
   dmaDashboardHandler,
   ulbListHandler,
@@ -104,4 +120,5 @@ module.exports = {
   rtsULBDeptWiseHandler,
   rtsULBServiceWiseHandler,
   rtsStatusWiseHandler,
+  rtsApplicationDetailHandler,
 };

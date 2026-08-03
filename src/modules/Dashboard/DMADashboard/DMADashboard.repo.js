@@ -487,6 +487,66 @@ const fetchRTSStatusWiseData = async (req, res) => {
     });
   }
 };
+/**
+ * Fetch RTS Application Detail data
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const fetchRTSApplicationDetailData = async (req, res) => {
+  try {
+    const { dept, status, ulbId } = req.query;
+
+    if (!dept || !status) {
+      return res.status(400).json({
+        success: false,
+        message: "dept and status are required"
+      });
+    }
+
+    let sql = `
+      SELECT 
+        VAR_DEPT_ENGNAME as DEPTNAME,
+        VAR_SERVICE_ENG_NAME as SERVICENAME,
+        OWNERNAME as OWNERNAME,
+        VAR_APPL_MOBNO as MOBNO,
+        VAR_APPL_EMAIL as EMAIL,
+        TO_CHAR(DAT_APPLICATION_INSDATE, 'DD-MM-YYYY') as APPLIDATE,
+        AMOUNT as AMOUNT,
+        TO_CHAR(DAT_APPLICATION_RECIEPTDATE, 'DD-MM-YYYY') as RECIEPTDATE,
+        STATUS as STATUS,
+        TO_CHAR(DAT_APPLICATION_DELIVEREDDATE, 'DD-MM-YYYY') as CERTIISSDATE
+      FROM aorts.vw_dashborddata
+      WHERE NUM_APPLICATION_DEPTID = :dept
+    `;
+
+    const params = { dept };
+
+    if (status !== 'TOT') {
+      sql += ` AND application_status = :status`;
+      params.status = status;
+    }
+
+    if (ulbId) {
+      sql += ` AND ulbid = :ulbId`;
+      params.ulbId = ulbId;
+    }
+
+    const result = await executeQuery(sql, params, {
+      outFormat: oracledb.OUT_FORMAT_OBJECT
+    });
+
+    const data = result.rows || [];
+
+    res.json({ success: true, data: data });
+
+  } catch (err) {
+    console.error("RTS Application Detail Fetch Error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
+    });
+  }
+};
 
 module.exports = {
   fetchDashboardDataNew,
@@ -494,5 +554,6 @@ module.exports = {
   fetchRTSULBWiseData,
   fetchRTSULBDeptWiseData,
   fetchRTSULBServiceWiseData,
-  fetchRTSStatusWiseData
+  fetchRTSStatusWiseData,
+  fetchRTSApplicationDetailData
 };
