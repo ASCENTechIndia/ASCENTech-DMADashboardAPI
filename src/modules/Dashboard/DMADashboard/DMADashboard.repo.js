@@ -92,7 +92,7 @@ FROM
         SUM(NVL(d.num_dasdboard_column2,0)) AS total_column2,
 
         CASE
-            WHEN d.var_dasdboard_modulecode IN ('PTAX','WAT','CFC','MRKT')
+            WHEN d.var_dasdboard_modulecode IN ('PTAX','WAT','CFC')
             THEN ROUND(
                      SUM(NVL(d.num_dasdboard_column2,0))
                      * 100 /
