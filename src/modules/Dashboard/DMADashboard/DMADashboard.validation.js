@@ -4,6 +4,10 @@ const dmaDashboardQuerySchema = z.object({
   ulbId: z.union([z.coerce.number().int().positive(), z.literal('ALL'), z.literal('')]).optional()
 }).passthrough();
 
+const lastSyncDateQuerySchema = z.object({
+  ulbId: z.union([z.coerce.number().int().positive(), z.literal('ALL'), z.literal('')]).optional()
+}).passthrough();
+
 /**
  * Schema for RTS ULB Wise data fetching
  * Returns corporation-wise RTS application status breakdown
@@ -45,6 +49,7 @@ const ulbListQuerySchema = z.object({}).passthrough();
  */
 module.exports = {
   dmaDashboardQuerySchema,
+  lastSyncDateQuerySchema,
   ulbListQuerySchema,
   rtsULBWiseQuerySchema,
   rtsULBDeptWiseQuerySchema,

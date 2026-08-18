@@ -37,6 +37,7 @@ const getTilesDataRepo = async (req, res) => {
     const ulbId = req.query.ulbId;
     let ulbFilter = "";
     const binds = {};
+
     if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
       ulbFilter = "WHERE ULBID = :ulbId";
       binds.ulbId = Number(ulbId);
@@ -104,11 +105,12 @@ LEFT JOIN REC R
  */
 
 
-const getModewiseCollectionRepo = async (req, res) => {
+const  getModewiseCollectionRepo = async (req, res) => {
   try {
     const ulbId = req.query.ulbId;
     let ulbFilter = "";
     const binds = {};
+
     if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
       ulbFilter = "WHERE ULBID = :ulbId";
       binds.ulbId = Number(ulbId);
@@ -248,6 +250,7 @@ const getPropertySummaryRepo = async (req, res) => {
     const ulbId = req.query.ulbId;
     let ulbFilter = "";
     const binds = {};
+
     if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
       ulbFilter = "WHERE p.ULBID = :ulbId";
       binds.ulbId = Number(ulbId);
@@ -301,6 +304,7 @@ const getCollectioninPerctRepo = async (req, res) => {
     const ulbId = req.query.ulbId;
     let ulbFilter = "";
     const binds = {};
+
     if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
       ulbFilter = "WHERE ULBID = :ulbId";
       binds.ulbId = Number(ulbId);
@@ -386,6 +390,7 @@ const getTotalPerfCorpbyCollRepo = async (req, res) => {
     const ulbId = req.query.ulbId;
     let ulbFilter = "";
     const binds = {};
+    
     if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
       ulbFilter = "WHERE ULBID = :ulbId";
       binds.ulbId = Number(ulbId);
@@ -474,6 +479,7 @@ const getTotalPerfCorpCollectionRepo = async (req, res) => {
     const ulbId = req.query.ulbId;
     let ulbFilter = "";
     const binds = {};
+
     if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
       ulbFilter = "WHERE ULBID = :ulbId";
       binds.ulbId = Number(ulbId);

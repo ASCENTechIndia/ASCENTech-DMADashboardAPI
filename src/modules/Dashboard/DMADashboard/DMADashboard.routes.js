@@ -1,8 +1,8 @@
 const express = require('express');
 const validate = require('../../../middleware/validate.middleware');
 const { authRequired } = require('../../../middleware/auth');
-const { dmaDashboardQuerySchema, ulbListQuerySchema, rtsULBWiseQuerySchema, rtsULBDeptWiseQuerySchema, rtsULBServiceWiseQuerySchema, rtsStatusWiseQuerySchema, rtsApplicationDetailQuerySchema } = require('./DMADashboard.validation');
-const { dmaDashboardHandler, ulbListHandler, rtsULBWiseHandler, rtsULBDeptWiseHandler, rtsULBServiceWiseHandler, rtsStatusWiseHandler, rtsApplicationDetailHandler } = require('./DMADashboard.controller');
+const { dmaDashboardQuerySchema, lastSyncDateQuerySchema, ulbListQuerySchema, rtsULBWiseQuerySchema, rtsULBDeptWiseQuerySchema, rtsULBServiceWiseQuerySchema, rtsStatusWiseQuerySchema, rtsApplicationDetailQuerySchema } = require('./DMADashboard.validation');
+const { dmaDashboardHandler, lastSyncDateHandler, ulbListHandler, rtsULBWiseHandler, rtsULBDeptWiseHandler, rtsULBServiceWiseHandler, rtsStatusWiseHandler, rtsApplicationDetailHandler } = require('./DMADashboard.controller');
 
 
 const router = express.Router();
@@ -15,6 +15,16 @@ router.get(
   '/DashboardDataNew',
   validate(dmaDashboardQuerySchema, { source: 'query' }),
   dmaDashboardHandler
+);
+
+/**
+ * GET /api/dashboard/LastSyncDate
+ * Fetch Last Sync Date
+ */
+router.get(
+  '/LastSyncDate',
+  validate(lastSyncDateQuerySchema, { source: 'query' }),
+  lastSyncDateHandler
 );
 
 /**

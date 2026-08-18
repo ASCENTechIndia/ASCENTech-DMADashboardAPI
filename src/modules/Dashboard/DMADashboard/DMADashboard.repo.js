@@ -36,12 +36,14 @@ const fetchDashboardDataNew = async (req, res) => {
   try {
     const { ulbId } = req.query;
 
-    let ulbCondition = "";
+    let ulbCondition = "AND d.num_dashboard_ulbid NOT IN (550, 1, 5)";
+    let configJoin = "";
     const params = {};
 
     if (ulbId && ulbId !== 'ALL') {
       ulbCondition = "AND d.num_dashboard_ulbid = :ulbId";
-      params.ulbId = ulbId;
+      configJoin = "AND EXISTS (SELECT 1 FROM admins.AOMA_DMADASHBOARDCONFIG_MAS dc WHERE m.var_module_code = dc.var_dashboardconfg_modulecode AND dc.num_dashboardconfg_ulbid = :ulbId AND dc.var_dashboardconfg_chr_active = 'Y')";
+      params.ulbId = Number(ulbId);
     }
 
     const sql = `
@@ -55,31 +57,28 @@ const fetchDashboardDataNew = async (req, res) => {
                JSON_OBJECT(
                    'label' VALUE x.column1_label,
                    'value' VALUE x.total_column1
-                   RETURNING CLOB
                ),
                JSON_OBJECT(
                    'label' VALUE x.column2_label,
                    'value' VALUE x.total_column2
-                   RETURNING CLOB
                ),
                JSON_OBJECT(
                    'label' VALUE x.column3_label,
                    'value' VALUE x.total_column3
-                   RETURNING CLOB
                )
-               RETURNING CLOB
            )
-           RETURNING CLOB
          )
           ORDER BY
-        CASE
-            WHEN NVL(x.total_column1,0) = 0
-             AND NVL(x.total_column2,0) = 0
-             AND NVL(x.total_column3,0) = 0
-            THEN 1
-            ELSE 0
-        END,
-        x.num_module_orderby
+          CASE WHEN x.var_dasdboard_modulecode = 'RTS' THEN 0 ELSE 1 END,
+          CASE
+              WHEN NVL(x.total_column1,0) = 0
+               AND NVL(x.total_column2,0) = 0
+               AND NVL(x.total_column3,0) = 0
+              THEN 1
+              ELSE 0
+          END,
+          x.num_module_orderby
+        
     RETURNING CLOB
        ) AS dashboard_json
 FROM
@@ -87,8 +86,8 @@ FROM
     SELECT
         d.var_dasdboard_modulecode,
         m.var_module_title,
-        m.num_seqno,  m.num_module_orderby,
-        m.var_module_url,
+        m.num_seqno,  m.num_seqno AS num_module_orderby,
+        '' AS var_module_url,
         SUM(NVL(d.num_dasdboard_column1,0)) AS total_column1,
 
         SUM(NVL(d.num_dasdboard_column2,0)) AS total_column2,
@@ -138,12 +137,13 @@ FROM
 
     WHERE m.chr_active = 'Y'
       ${ulbCondition}
+      ${configJoin}
 
    GROUP BY
         d.var_dasdboard_modulecode,
         m.var_module_title,
-        m.num_seqno,m.num_module_orderby, m.var_module_url
-order by num_module_orderby
+        m.num_seqno
+order by m.num_seqno
 ) x
 	`;
 
@@ -230,7 +230,7 @@ const fetchULBList = async (req, res) => {
 const fetchRTSULBWiseData = async (req, res) => {
   try {
     const ulbId = req.query.ulbId;
-    let whereClause = "WHERE ulbid <> 5";
+    let whereClause = "";
     const binds = {};
 
     if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
@@ -254,7 +254,7 @@ const fetchRTSULBWiseData = async (req, res) => {
                       CASE WHEN status IS NOT NULL THEN 1 ELSE 0 END AS total,
                       application_status, ulbid
                  FROM aorts.vw_dashborddata
-                WHERE ulbid NOT IN (550, 1))
+                WHERE ulbid NOT IN (550, 1, 5))
       SELECT var_corporation_shortname, num_corporation_id, SUM (new) new,
              SUM (approved) approved,
              SUM (verification_pending) verification_pending,
@@ -315,7 +315,7 @@ const fetchRTSULBDeptWiseData = async (req, res) => {
         case when status in ('Authorisation Reject','Denied') then 1 else 0 end as Authorisation_Reject, 
         case when status = 'Payment Pending' then 1 else 0 end as Payment_Pending,  
         case when status is not null then 1 else 0 end as total,application_status,ulbid 
-        from aorts.vw_dashborddata  where ulbid not in ( 550,1) 
+        from aorts.vw_dashborddata  where ulbid not in ( 550,1,5) 
       ) 
       select
         var_dept_engname ,num_application_deptid, 
@@ -373,7 +373,7 @@ const fetchRTSULBServiceWiseData = async (req, res) => {
         case when status in ('Authorisation Reject','Denied') then 1 else 0 end as Authorisation_Reject, 
         case when status = 'Payment Pending' then 1 else 0 end as Payment_Pending,  
         case when status is not null then 1 else 0 end as total,application_status,ulbid 
-        from aorts.vw_dashborddata  where ulbid not in ( 550,1) 
+        from aorts.vw_dashborddata  where ulbid not in ( 550,1,5) 
       ) 
       select 
         var_service_eng_name , 
@@ -431,13 +431,13 @@ const fetchRTSStatusWiseData = async (req, res) => {
         case when status in ('Authorisation Reject','Denied') then 1 else 0 end as Authorisation_Reject, 
         case when status = 'Payment Pending' then 1 else 0 end as Payment_Pending,  
         case when status is not null then 1 else 0 end as total,application_status,ulbid 
-        from aorts.vw_dashborddata  where ulbid not in ( 550,1) 
+        from aorts.vw_dashborddata  where ulbid not in ( 550,1,5) 
       ) 
       select 
         var_dept_engname,num_application_deptid,
-        ${status === 'TOT' 
-          ? 'SUM(total) status'
-          : `case application_status 
+        ${status === 'TOT'
+        ? 'SUM(total) status'
+        : `case application_status 
               when 'NW' then SUM (new) 
               when 'AP' then SUM(approved) 
               when 'VP' then SUM(verification_pending) 
@@ -448,7 +448,7 @@ const fetchRTSStatusWiseData = async (req, res) => {
               when 'CR' then SUM(authorisation_reject) 
               when 'PP' then SUM(payment_pending) 
              end status, application_status`
-        }
+      }
       FROM dashbord 
       WHERE 1 = 1 
     `;
@@ -548,8 +548,51 @@ const fetchRTSApplicationDetailData = async (req, res) => {
   }
 };
 
+/**
+ * Fetch Last Sync Date
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const fetchLastSyncDate = async (req, res) => {
+  try {
+    const { ulbId } = req.query;
+
+    let ulbCondition = "";
+    const params = {};
+
+    if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
+      ulbCondition = "WHERE num_dashboard_ulbid = :ulbId";
+      params.ulbId = Number(ulbId);
+    } else {
+      ulbCondition = "WHERE num_dashboard_ulbid = 1670";
+    }
+
+    const sql = `
+      SELECT TO_CHAR( NVL(MAX(dat_dasdboard_transsryncdt),SYSDATE),'DD Mon YYYY HH:MI AM') AS LAST_SYNC_DATE
+      FROM admins.aoms_dashboard_det
+      ${ulbCondition}
+    `;
+
+    const result = await executeQuery(sql, params, {
+      outFormat: oracledb.OUT_FORMAT_OBJECT
+    });
+
+    const data = result.rows && result.rows.length > 0 ? result.rows[0].LAST_SYNC_DATE : null;
+
+    res.json({ success: true, data: data });
+
+  } catch (err) {
+    console.error("Last Sync Date Fetch Error:", err);
+    res.status(500).json({
+      success: false,
+      message: "Internal Server Error"
+    });
+  }
+};
+
 module.exports = {
   fetchDashboardDataNew,
+  fetchLastSyncDate,
   fetchULBList,
   fetchRTSULBWiseData,
   fetchRTSULBDeptWiseData,
