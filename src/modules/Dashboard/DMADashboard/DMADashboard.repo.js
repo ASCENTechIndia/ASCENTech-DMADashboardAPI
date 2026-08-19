@@ -88,21 +88,23 @@ FROM
         m.var_module_title,
         m.num_seqno,  m.num_seqno AS num_module_orderby,
         '' AS var_module_url,
-        SUM(NVL(d.num_dasdboard_column1,0)) AS total_column1,
+           case when d.var_dasdboard_modulecode = 'RTS' then 
+        (select total_applications from aorts.dmc_dashboard_summary) else
+        SUM(NVL(d.num_dasdboard_column1,0))end AS total_column1,
 
-        SUM(NVL(d.num_dasdboard_column2,0)) AS total_column2,
 
-        CASE
+  case when d.var_dasdboard_modulecode = 'RTS' then 
+        (select approved_applications from aorts.dmc_dashboard_summary) else
+        SUM(NVL(d.num_dasdboard_column2,0)) end  AS total_column2,
+
+ CASE
             WHEN d.var_dasdboard_modulecode IN ('PTAX','WAT','CFC','MRKT')
-            THEN ROUND(
-                     SUM(NVL(d.num_dasdboard_column2,0))
-                     * 100 /
-                     NULLIF(SUM(NVL(d.num_dasdboard_column1,0)),0),
-                     2
-                 )
-            ELSE
-                SUM(NVL(d.num_dasdboard_column3,0))
+            THEN ROUND(SUM(NVL(d.num_dasdboard_column2,0))* 100 /NULLIF(SUM(NVL(d.num_dasdboard_column1,0)),0),2 )
+             when d.var_dasdboard_modulecode = 'RTS' then
+            (select pending_applications from aorts.vw_dhulerts_pending_apl)
+            ELSE SUM(NVL(d.num_dasdboard_column3,0))
         END AS total_column3,
+
 
         MAX(c1.var_column_label) AS column1_label,
         MAX(c2.var_column_label) AS column2_label,
