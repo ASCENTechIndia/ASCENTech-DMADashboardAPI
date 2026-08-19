@@ -1,4 +1,4 @@
-const { fetchDashboardData, fetchULBListData, fetchRTSULBWise, fetchRTSULBDeptWise, fetchRTSULBServiceWise, fetchRTSStatusWise } = require('./DMADashboard.service');
+const { fetchDashboardData, fetchLastSyncDateData, fetchULBListData, fetchRTSULBWise, fetchRTSULBDeptWise, fetchRTSULBServiceWise, fetchRTSStatusWise, fetchRTSApplicationDetail } = require('./DMADashboard.service');
 const { logApiSuccess, logApiError } = require('../../../utils/log');
 
 /**
@@ -97,11 +97,45 @@ async function rtsStatusWiseHandler(req, res, next) {
   }
 }
 
+/**
+ * Controller handler for fetching RTS Application Detail data
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware
+ */
+async function rtsApplicationDetailHandler(req, res, next) {
+  try {
+    logApiSuccess(req, 200, {}, 'RTS Application Detail data request initiated');
+    return await fetchRTSApplicationDetail(req, res);
+  } catch (error) {
+    logApiError(req, 500, error.message, 'RTS Application Detail data error');
+    return next(error);
+  }
+}
+
+/**
+ * Controller handler for fetching Last Sync Date
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware
+ */
+async function lastSyncDateHandler(req, res, next) {
+  try {
+    logApiSuccess(req, 200, {}, 'Last Sync Date request initiated');
+    return await fetchLastSyncDateData(req, res);
+  } catch (error) {
+    logApiError(req, 500, error.message, 'Last Sync Date error');
+    return next(error);
+  }
+}
+
 module.exports = {
   dmaDashboardHandler,
+  lastSyncDateHandler,
   ulbListHandler,
   rtsULBWiseHandler,
   rtsULBDeptWiseHandler,
   rtsULBServiceWiseHandler,
   rtsStatusWiseHandler,
+  rtsApplicationDetailHandler,
 };

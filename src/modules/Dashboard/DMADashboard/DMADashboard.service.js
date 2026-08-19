@@ -1,4 +1,4 @@
-const { fetchDashboardDataNew, fetchULBList, fetchRTSULBWiseData, fetchRTSULBDeptWiseData, fetchRTSULBServiceWiseData, fetchRTSStatusWiseData } = require('./DMADashboard.repo');
+const { fetchDashboardDataNew, fetchLastSyncDate, fetchULBList, fetchRTSULBWiseData, fetchRTSULBDeptWiseData, fetchRTSULBServiceWiseData, fetchRTSStatusWiseData, fetchRTSApplicationDetailData } = require('./DMADashboard.repo');
 
 /**
  * Service to fetch dashboard data
@@ -54,11 +54,32 @@ async function fetchRTSStatusWise(req, res) {
   return await fetchRTSStatusWiseData(req, res);
 }
 
+/**
+ * Service to fetch RTS Application Detail data
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function fetchRTSApplicationDetail(req, res) {
+  return await fetchRTSApplicationDetailData(req, res);
+}
+
+/**
+ * Service to fetch Last Sync Date
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function fetchLastSyncDateData(req, res) {
+  return await fetchLastSyncDate(req, res);
+}
+
 module.exports = {
   fetchDashboardData,
+  fetchLastSyncDateData,
   fetchULBListData,
   fetchRTSULBWise,
   fetchRTSULBDeptWise,
   fetchRTSULBServiceWise,
+  fetchRTSServiceWise: fetchRTSULBServiceWise, // For backward compatibility if needed
   fetchRTSStatusWise,
+  fetchRTSApplicationDetail,
 };

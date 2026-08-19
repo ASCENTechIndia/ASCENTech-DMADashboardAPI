@@ -4,6 +4,10 @@ const dmaDashboardQuerySchema = z.object({
   ulbId: z.union([z.coerce.number().int().positive(), z.literal('ALL'), z.literal('')]).optional()
 }).passthrough();
 
+const lastSyncDateQuerySchema = z.object({
+  ulbId: z.union([z.coerce.number().int().positive(), z.literal('ALL'), z.literal('')]).optional()
+}).passthrough();
+
 /**
  * Schema for RTS ULB Wise data fetching
  * Returns corporation-wise RTS application status breakdown
@@ -26,6 +30,12 @@ const rtsStatusWiseQuerySchema = z.object({
   ulbId: z.coerce.number().int().positive({ message: "ulbId must be a positive integer" }).optional()
 }).passthrough();
 
+const rtsApplicationDetailQuerySchema = z.object({
+  dept: z.coerce.number().int().positive({ message: "dept must be a positive integer" }),
+  status: z.string({ message: "status is required" }),
+  ulbId: z.coerce.number().int().positive({ message: "ulbId must be a positive integer" }).optional()
+}).passthrough();
+
 
 /**
  * Schema for ULB (Corporation) list fetching
@@ -39,9 +49,11 @@ const ulbListQuerySchema = z.object({}).passthrough();
  */
 module.exports = {
   dmaDashboardQuerySchema,
+  lastSyncDateQuerySchema,
   ulbListQuerySchema,
   rtsULBWiseQuerySchema,
   rtsULBDeptWiseQuerySchema,
   rtsULBServiceWiseQuerySchema,
   rtsStatusWiseQuerySchema,
+  rtsApplicationDetailQuerySchema,
 };
