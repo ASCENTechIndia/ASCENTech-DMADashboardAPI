@@ -55,16 +55,30 @@ async function executeProcedure({
     });
 
     if (result.outBinds) {
-  for (const key in result.outBinds) {
-    const val = result.outBinds[key];
+      for (const key in result.outBinds) {
+        const val = result.outBinds[key];
 
-    if (val && typeof val.getRows === "function") {
-      const rows = await val.getRows(1000);
-      await val.close();
-      result.outBinds[key] = rows; 
+        // Handle ResultSet (cursor) OUT binds
+        if (val && typeof val.getRows === "function") {
+          const rows = await val.getRows(1000);
+          await val.close();
+          result.outBinds[key] = rows;
+        }
+
+        // ✅ Handle CLOB OUT binds — MUST be read before connection.close()
+        // A LOB object is tied to the connection; reading it after close() returns empty.
+        else if (val && typeof val.setEncoding === "function") {
+          const clobString = await new Promise((resolve, reject) => {
+            let data = "";
+            val.setEncoding("utf8");
+            val.on("data", chunk => data += chunk);
+            val.on("end", () => resolve(data));
+            val.on("error", reject);
+          });
+          result.outBinds[key] = clobString;
+        }
+      }
     }
-  }
-}
 
     if (useTx) {
       await connection.commit();

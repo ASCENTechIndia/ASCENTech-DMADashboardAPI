@@ -1,4 +1,4 @@
-const { fetchDashboardData, fetchLastSyncDateData, fetchULBListData, fetchRTSULBWise, fetchRTSULBDeptWise, fetchRTSULBServiceWise, fetchRTSStatusWise, fetchRTSApplicationDetail } = require('./DMADashboard.service');
+const { fetchDashboardData, fetchLastSyncDateData, fetchULBListData, fetchRTSULBWise, fetchRTSULBDeptWise, fetchRTSULBServiceWise, fetchRTSStatusWise, fetchRTSApplicationDetail , fetchMonthwiseData } = require('./DMADashboard.service');
 const { logApiSuccess, logApiError } = require('../../../utils/log');
 
 /**
@@ -129,7 +129,22 @@ async function lastSyncDateHandler(req, res, next) {
   }
 }
 
+
+/**
+ * Controller handler for fetching monthwise data
+ */
+async function  monthwiseFetchHandler(req, res, next) {
+  try {
+    logApiSuccess(req, 200, {}, 'Monthwise Fetch request initiated');
+    return await fetchMonthwiseData(req, res);
+  } catch (error) {
+    logApiError(req, 500, error.message, 'Monthwise Fetch error');
+    return next(error);
+  }
+}
+
 module.exports = {
+  monthwiseFetchHandler,
   dmaDashboardHandler,
   lastSyncDateHandler,
   ulbListHandler,

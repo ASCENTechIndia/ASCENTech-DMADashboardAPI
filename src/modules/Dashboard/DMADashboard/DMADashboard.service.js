@@ -1,4 +1,4 @@
-const { fetchDashboardDataNew, fetchLastSyncDate, fetchULBList, fetchRTSULBWiseData, fetchRTSULBDeptWiseData, fetchRTSULBServiceWiseData, fetchRTSStatusWiseData, fetchRTSApplicationDetailData } = require('./DMADashboard.repo');
+const { fetchDashboardDataNew, fetchLastSyncDate, fetchULBList, fetchRTSULBWiseData, fetchRTSULBDeptWiseData, fetchRTSULBServiceWiseData, fetchRTSStatusWiseData, fetchRTSApplicationDetailData, fetchMonthwiseData } = require('./DMADashboard.repo');
 
 /**
  * Service to fetch dashboard data
@@ -72,7 +72,15 @@ async function fetchLastSyncDateData(req, res) {
   return await fetchLastSyncDate(req, res);
 }
 
+
+/**
+ * Service to fetch monthwise data
+ */
+async function fetchMonthwiseDataService(req, res) {
+  return await fetchMonthwiseData(req, res);
+}
 module.exports = {
+  fetchMonthwiseData: fetchMonthwiseDataService,
   fetchDashboardData,
   fetchLastSyncDateData,
   fetchULBListData,

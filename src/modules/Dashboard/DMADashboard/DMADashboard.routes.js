@@ -1,8 +1,8 @@
 const express = require('express');
 const validate = require('../../../middleware/validate.middleware');
 const { authRequired } = require('../../../middleware/auth');
-const { dmaDashboardQuerySchema, lastSyncDateQuerySchema, ulbListQuerySchema, rtsULBWiseQuerySchema, rtsULBDeptWiseQuerySchema, rtsULBServiceWiseQuerySchema, rtsStatusWiseQuerySchema, rtsApplicationDetailQuerySchema } = require('./DMADashboard.validation');
-const { dmaDashboardHandler, lastSyncDateHandler, ulbListHandler, rtsULBWiseHandler, rtsULBDeptWiseHandler, rtsULBServiceWiseHandler, rtsStatusWiseHandler, rtsApplicationDetailHandler } = require('./DMADashboard.controller');
+const { dmaDashboardQuerySchema, lastSyncDateQuerySchema, ulbListQuerySchema, rtsULBWiseQuerySchema, rtsULBDeptWiseQuerySchema, rtsULBServiceWiseQuerySchema, rtsStatusWiseQuerySchema, rtsApplicationDetailQuerySchema, monthwiseFetchQuerySchema } = require('./DMADashboard.validation');
+const { dmaDashboardHandler, lastSyncDateHandler, ulbListHandler, rtsULBWiseHandler, rtsULBDeptWiseHandler, rtsULBServiceWiseHandler, rtsStatusWiseHandler, rtsApplicationDetailHandler, monthwiseFetchHandler } = require('./DMADashboard.controller');
 
 
 const router = express.Router();
@@ -85,6 +85,27 @@ router.get(
   '/RTSApplicationDetail',
   validate(rtsApplicationDetailQuerySchema, { source: 'query' }),
   rtsApplicationDetailHandler
+);
+
+
+/**
+ * GET /api/dashboard/MonthwiseFetch
+ * Fetch monthwise dashboard data
+ */
+router.get(
+  '/MonthwiseFetch',
+  validate(monthwiseFetchQuerySchema, { source: 'query' }),
+  monthwiseFetchHandler
+);
+
+/**
+ * POST /api/dashboard/MonthwiseFetch
+ * Fetch monthwise dashboard data (using payload)
+ */
+router.post(
+  '/MonthwiseFetch',
+  validate(monthwiseFetchQuerySchema, { source: 'body' }),
+  monthwiseFetchHandler
 );
 
 module.exports = router;

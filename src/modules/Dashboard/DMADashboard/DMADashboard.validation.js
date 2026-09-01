@@ -47,6 +47,11 @@ const ulbListQuerySchema = z.object({}).passthrough();
  * Schema for DMA Dashboard data fetching
  * Returns modules with metrics and color-coded status based on data freshness
  */
+const monthwiseFetchQuerySchema = z.object({
+  ulbId: z.union([z.coerce.number().int().positive(), z.literal('ALL'), z.literal('')]).optional(),
+  flag: z.string().optional()
+}).passthrough();
+
 module.exports = {
   dmaDashboardQuerySchema,
   lastSyncDateQuerySchema,
@@ -56,4 +61,5 @@ module.exports = {
   rtsULBServiceWiseQuerySchema,
   rtsStatusWiseQuerySchema,
   rtsApplicationDetailQuerySchema,
+  monthwiseFetchQuerySchema,
 };

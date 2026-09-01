@@ -177,13 +177,29 @@ order by m.num_seqno
 
     const parsedJSON = JSON.parse(fixedJson);
 
+    // Fix labels and formatting for Recovery Percentage modules
+    if (Array.isArray(parsedJSON)) {
+      parsedJSON.forEach(module => {
+        if (['PTAX', 'WAT', 'CFC', 'MRKT'].includes(module.code)) {
+          if (module.metrics && module.metrics[2]) {
+            // Remove "(Amount in Cr)" from the label
+            module.metrics[2].label = "Recovery Percentage";
+            // Append % so frontend doesn't treat it as currency
+            if (module.metrics[2].value !== null && module.metrics[2].value !== undefined) {
+              module.metrics[2].value = `${module.metrics[2].value}%`;
+            }
+          }
+        }
+      });
+    }
+
     res.json({ success: true, data: parsedJSON });
 
   } catch (err) {
     console.error("Dashboard Fetch Error:", err);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: error.message
     });
   }
 };
@@ -220,7 +236,7 @@ const fetchULBList = async (req, res) => {
     console.error("ULB List Fetch Error:", err);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: error.message
     });
   }
 };
@@ -283,7 +299,7 @@ const fetchRTSULBWiseData = async (req, res) => {
     console.error("RTS ULB Wise Fetch Error:", err);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: error.message
     });
   }
 };
@@ -341,7 +357,7 @@ const fetchRTSULBDeptWiseData = async (req, res) => {
     console.error("RTS ULB Dept Wise Fetch Error:", err);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: error.message
     });
   }
 };
@@ -399,7 +415,7 @@ const fetchRTSULBServiceWiseData = async (req, res) => {
     console.error("RTS ULB Service Wise Fetch Error:", err);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: error.message
     });
   }
 };
@@ -485,7 +501,7 @@ const fetchRTSStatusWiseData = async (req, res) => {
     console.error("RTS Status Wise Fetch Error:", err);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: error.message
     });
   }
 };
@@ -545,7 +561,7 @@ const fetchRTSApplicationDetailData = async (req, res) => {
     console.error("RTS Application Detail Fetch Error:", err);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: error.message
     });
   }
 };
@@ -587,12 +603,114 @@ const fetchLastSyncDate = async (req, res) => {
     console.error("Last Sync Date Fetch Error:", err);
     res.status(500).json({
       success: false,
-      message: "Internal Server Error"
+      message: error.message
     });
   }
 };
 
+
+/**
+ * Mapping from frontend card title (lowercase) → Oracle DB flag code
+ * Add new entries here as the DBA confirms the correct flag codes.
+ */
+const FLAG_MAP = {
+  "water tax":           "WAT",
+  "water":               "WAT",
+  "property tax":        "PT",
+  "estate":              "ESTD",
+  "grievances":          "GRIV",
+  "cfc":                 "CFC",
+  "accounts":            "ACC",
+  "marriage":            "MRRG",
+  "marriage registration": "MRRG",
+  "birth & death":       "BAND",
+  "bnd":                 "BAND",
+  "fire":                "FIRE",
+  "legal":               "LEGL",
+  "market":              "MRKT",
+  "social welfare":      "SWEL",
+  "inward outward":      "INW",
+  "asset management":    "ASSET",
+  "works":               "WORKS",
+  "rts":                 "RTS",
+};
+
+/**
+ * Fetch monthwise dashboard data using aoma_dmadashboardmonthwise_fetch
+ */
+const fetchMonthwiseData = async (req, res) => {
+  try {
+    const ulbId = req.body?.ulbId || req.body?.ulbid || req.query?.ulbId || req.query?.ulbid;
+    const flag = req.body?.flag || req.query?.flag;
+    const userId = req.user?.userid || req.body?.userId || req.query?.userId || '1';
+
+    // Convert human-readable flag to Oracle DB flag code
+    const dbFlag = FLAG_MAP[(flag || '').toLowerCase().trim()] || flag || '';
+
+    const params = [
+      { value: normalizeUserId(userId), type: oracledb.STRING },
+      { value: Number(ulbId) || 0, type: oracledb.NUMBER },
+      { value: dbFlag, type: oracledb.STRING },
+      { out: true, type: oracledb.NUMBER },
+      { out: true, type: oracledb.STRING },
+      { out: true, type: oracledb.CLOB }
+    ];
+
+    const { executeProcedure } = require('../../../db/procedureExecutor');
+    const result = await executeProcedure({
+      name: "admins.aoma_dmadashboardmonthwise_fetch",
+      params: params
+    });
+
+    if (!result.success || !result.outBinds) {
+      return res.status(500).json({ success: false, message: "Procedure execution failed" });
+    }
+
+    const errCode = result.outBinds.p4;
+    const errMsg = result.outBinds.p5;
+    // p6 is already a string — CLOB was read inside procedureExecutor before connection.close()
+    const clobString = result.outBinds.p6 || "";
+
+    // Oracle convention: 9999 = Success, 0 = Success, any other value = Error
+    const isDbError = errCode !== null && errCode !== undefined && errCode !== 0 && errCode !== 9999;
+    if (isDbError) {
+      return res.status(400).json({ success: false, message: errMsg || "Error from DB" });
+    }
+    const fixedJson = clobString.replace(/(\s|:)\.(\d+)/g, "$10.$2");
+    let parsedData = JSON.parse(fixedJson || "[]");
+
+    // For Market, calculate Recovery Percentage
+    if (dbFlag === 'MRKT' && Array.isArray(parsedData)) {
+      parsedData = parsedData.map(item => {
+        // Fallback to cash + cheque + online if total_collection is missing
+        const demand = Number(item.total_demand || item.totalDemand || 0);
+        const collection = Number(item.total_collection || item.totalCollection) || 
+                           ((Number(item.cash_collection) || 0) + 
+                            (Number(item.cheque_collection) || 0) + 
+                            (Number(item.online_collection) || 0));
+                            
+        let recoveryPercentage = 0;
+        if (demand > 0) {
+          recoveryPercentage = (collection / demand) * 100;
+        }
+
+        return {
+          ...item,
+          total_collection: collection, // Ensure it's available
+          total_demand: demand,         // Ensure it's available
+          recovery_percentage: Number(recoveryPercentage.toFixed(2))
+        };
+      });
+    }
+    return res.json({ success: true, dbFlag: dbFlag, data: parsedData });
+
+  } catch (error) {
+    console.error("fetchMonthwiseData Error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
 module.exports = {
+  fetchMonthwiseData,
   fetchDashboardDataNew,
   fetchLastSyncDate,
   fetchULBList,
@@ -600,5 +718,6 @@ module.exports = {
   fetchRTSULBDeptWiseData,
   fetchRTSULBServiceWiseData,
   fetchRTSStatusWiseData,
-  fetchRTSApplicationDetailData
+  fetchRTSApplicationDetailData,
+  fetchMonthwiseData
 };
