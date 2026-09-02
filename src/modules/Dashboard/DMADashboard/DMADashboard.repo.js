@@ -98,7 +98,7 @@ FROM
         SUM(NVL(d.num_dasdboard_column2,0)) end  AS total_column2,
 
  CASE
-            WHEN d.var_dasdboard_modulecode IN ('PTAX','WAT','CFC','MRKT')
+            WHEN d.var_dasdboard_modulecode IN ('PTAX','WAT','CFC','MRKT','ADVT')
             THEN ROUND(SUM(NVL(d.num_dasdboard_column2,0))* 100 /NULLIF(SUM(NVL(d.num_dasdboard_column1,0)),0),2 )
              when d.var_dasdboard_modulecode = 'RTS' then
             (select pending_applications from aorts.vw_dhulerts_pending_apl)
@@ -180,7 +180,7 @@ order by m.num_seqno
     // Fix labels and formatting for Recovery Percentage modules
     if (Array.isArray(parsedJSON)) {
       parsedJSON.forEach(module => {
-        if (['PTAX', 'WAT', 'CFC', 'MRKT'].includes(module.code)) {
+        if (['PTAX', 'WAT', 'CFC', 'MRKT', 'ADVT'].includes(module.code)) {
           if (module.metrics && module.metrics[2]) {
             // Remove "(Amount in Cr)" from the label
             module.metrics[2].label = "Recovery Percentage";
@@ -633,6 +633,7 @@ const FLAG_MAP = {
   "asset management":    "ASSET",
   "works":               "WORKS",
   "rts":                 "RTS",
+  "advertisement":       "ADVT",
 };
 
 /**
