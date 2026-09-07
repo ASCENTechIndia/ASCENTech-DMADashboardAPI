@@ -1,8 +1,8 @@
 const express = require('express');
 const validate = require('../../../middleware/validate.middleware');
 const { authRequired } = require('../../../middleware/auth');
-const { dmaDashboardQuerySchema, lastSyncDateQuerySchema, ulbListQuerySchema, rtsULBWiseQuerySchema, rtsULBDeptWiseQuerySchema, rtsULBServiceWiseQuerySchema, rtsStatusWiseQuerySchema, rtsApplicationDetailQuerySchema, monthwiseFetchQuerySchema } = require('./DMADashboard.validation');
-const { dmaDashboardHandler, lastSyncDateHandler, ulbListHandler, rtsULBWiseHandler, rtsULBDeptWiseHandler, rtsULBServiceWiseHandler, rtsStatusWiseHandler, rtsApplicationDetailHandler, monthwiseFetchHandler } = require('./DMADashboard.controller');
+const { dmaDashboardQuerySchema, lastSyncDateQuerySchema, ulbListQuerySchema, rtsULBWiseQuerySchema, rtsULBDeptWiseQuerySchema, rtsULBServiceWiseQuerySchema, rtsStatusWiseQuerySchema, rtsApplicationDetailQuerySchema, monthwiseFetchQuerySchema, waterTaxTotalDemandQuerySchema, estateStatsQuerySchema } = require('./DMADashboard.validation');
+const { dmaDashboardHandler, lastSyncDateHandler, ulbListHandler, rtsULBWiseHandler, rtsULBDeptWiseHandler, rtsULBServiceWiseHandler, rtsStatusWiseHandler, rtsApplicationDetailHandler, monthwiseFetchHandler, waterTaxTotalDemandHandler, estateStatsHandler } = require('./DMADashboard.controller');
 
 
 const router = express.Router();
@@ -106,6 +106,28 @@ router.post(
   '/MonthwiseFetch',
   validate(monthwiseFetchQuerySchema, { source: 'body' }),
   monthwiseFetchHandler
+);
+
+/**
+ * GET /api/dashboard/WaterTaxTotalDemand
+ * Fetch Water Tax Total Demand (Cr) from aowt_billprint_mas
+ * Query params: ulbId (default 1670), fromDate (default '01-Apr-2026')
+ */
+router.get(
+  '/WaterTaxTotalDemand',
+  validate(waterTaxTotalDemandQuerySchema, { source: 'query' }),
+  waterTaxTotalDemandHandler
+);
+
+/**
+ * GET /api/dashboard/EstateStats
+ * Fetch Estate property counts (total / rented / leased / vacant) from aost_prop_mas
+ * Query params: ulbId (default 1670)
+ */
+router.get(
+  '/EstateStats',
+  validate(estateStatsQuerySchema, { source: 'query' }),
+  estateStatsHandler
 );
 
 module.exports = router;

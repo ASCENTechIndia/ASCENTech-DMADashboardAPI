@@ -1,4 +1,4 @@
-const { fetchDashboardData, fetchLastSyncDateData, fetchULBListData, fetchRTSULBWise, fetchRTSULBDeptWise, fetchRTSULBServiceWise, fetchRTSStatusWise, fetchRTSApplicationDetail , fetchMonthwiseData } = require('./DMADashboard.service');
+const { fetchDashboardData, fetchLastSyncDateData, fetchULBListData, fetchRTSULBWise, fetchRTSULBDeptWise, fetchRTSULBServiceWise, fetchRTSStatusWise, fetchRTSApplicationDetail, fetchMonthwiseData, fetchWaterTaxTotalDemandData, fetchEstateStatsData } = require('./DMADashboard.service');
 const { logApiSuccess, logApiError } = require('../../../utils/log');
 
 /**
@@ -143,6 +143,38 @@ async function  monthwiseFetchHandler(req, res, next) {
   }
 }
 
+/**
+ * Controller handler for fetching Water Tax Total Demand
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware
+ */
+async function waterTaxTotalDemandHandler(req, res, next) {
+  try {
+    logApiSuccess(req, 200, {}, 'Water Tax Total Demand request initiated');
+    return await fetchWaterTaxTotalDemandData(req, res);
+  } catch (error) {
+    logApiError(req, 500, error.message, 'Water Tax Total Demand error');
+    return next(error);
+  }
+}
+
+/**
+ * Controller handler for fetching Estate property stats
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ * @param {Function} next - Express next middleware
+ */
+async function estateStatsHandler(req, res, next) {
+  try {
+    logApiSuccess(req, 200, {}, 'Estate Stats request initiated');
+    return await fetchEstateStatsData(req, res);
+  } catch (error) {
+    logApiError(req, 500, error.message, 'Estate Stats error');
+    return next(error);
+  }
+}
+
 module.exports = {
   monthwiseFetchHandler,
   dmaDashboardHandler,
@@ -153,4 +185,6 @@ module.exports = {
   rtsULBServiceWiseHandler,
   rtsStatusWiseHandler,
   rtsApplicationDetailHandler,
+  waterTaxTotalDemandHandler,
+  estateStatsHandler,
 };

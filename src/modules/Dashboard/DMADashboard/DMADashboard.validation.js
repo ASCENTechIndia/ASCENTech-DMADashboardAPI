@@ -52,6 +52,24 @@ const monthwiseFetchQuerySchema = z.object({
   flag: z.string().optional()
 }).passthrough();
 
+/**
+ * Schema for Water Tax Total Demand fetching
+ * ulbId: defaults to 1670 if omitted
+ * fromDate: DD-Mon-YYYY string, defaults to '01-Apr-2026'
+ */
+const waterTaxTotalDemandQuerySchema = z.object({
+  ulbId: z.coerce.number().int().positive({ message: 'ulbId must be a positive integer' }).optional(),
+  fromDate: z.string().optional()
+}).passthrough();
+
+/**
+ * Schema for Estate property stats fetching
+ * ulbId: defaults to 1670 if omitted
+ */
+const estateStatsQuerySchema = z.object({
+  ulbId: z.coerce.number().int().positive({ message: 'ulbId must be a positive integer' }).optional()
+}).passthrough();
+
 module.exports = {
   dmaDashboardQuerySchema,
   lastSyncDateQuerySchema,
@@ -62,4 +80,6 @@ module.exports = {
   rtsStatusWiseQuerySchema,
   rtsApplicationDetailQuerySchema,
   monthwiseFetchQuerySchema,
+  waterTaxTotalDemandQuerySchema,
+  estateStatsQuerySchema,
 };

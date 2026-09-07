@@ -1,4 +1,4 @@
-const { fetchDashboardDataNew, fetchLastSyncDate, fetchULBList, fetchRTSULBWiseData, fetchRTSULBDeptWiseData, fetchRTSULBServiceWiseData, fetchRTSStatusWiseData, fetchRTSApplicationDetailData, fetchMonthwiseData } = require('./DMADashboard.repo');
+const { fetchDashboardDataNew, fetchLastSyncDate, fetchULBList, fetchRTSULBWiseData, fetchRTSULBDeptWiseData, fetchRTSULBServiceWiseData, fetchRTSStatusWiseData, fetchRTSApplicationDetailData, fetchMonthwiseData, fetchWaterTaxTotalDemand, fetchEstateStats } = require('./DMADashboard.repo');
 
 /**
  * Service to fetch dashboard data
@@ -79,6 +79,25 @@ async function fetchLastSyncDateData(req, res) {
 async function fetchMonthwiseDataService(req, res) {
   return await fetchMonthwiseData(req, res);
 }
+
+/**
+ * Service to fetch Water Tax Total Demand
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function fetchWaterTaxTotalDemandData(req, res) {
+  return await fetchWaterTaxTotalDemand(req, res);
+}
+
+/**
+ * Service to fetch Estate property stats
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function fetchEstateStatsData(req, res) {
+  return await fetchEstateStats(req, res);
+}
+
 module.exports = {
   fetchMonthwiseData: fetchMonthwiseDataService,
   fetchDashboardData,
@@ -87,7 +106,9 @@ module.exports = {
   fetchRTSULBWise,
   fetchRTSULBDeptWise,
   fetchRTSULBServiceWise,
-  fetchRTSServiceWise: fetchRTSULBServiceWise, // For backward compatibility if needed
+  fetchRTSServiceWise: fetchRTSULBServiceWise,
   fetchRTSStatusWise,
   fetchRTSApplicationDetail,
+  fetchWaterTaxTotalDemandData,
+  fetchEstateStatsData,
 };

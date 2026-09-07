@@ -610,6 +610,44 @@ const fetchLastSyncDate = async (req, res) => {
 
 
 /**
+ * Fetch Water Tax Total Demand from aowt_billprint_mas
+ * Formula: ROUND(SUM(NVL(num_billprint_btotaltax,0) + NVL(num_billprint_ctotaltax,0))/10000000, 2)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const fetchWaterTaxTotalDemand = async (req, res) => {
+  try {
+    const ulbId = req.query.ulbId ? Number(req.query.ulbId) : 1670;
+    const fromDate = req.query.fromDate || '01-Apr-2026';
+
+    const sql = `
+      SELECT ROUND(
+        SUM(NVL(num_billprint_btotaltax, 0) + NVL(num_billprint_ctotaltax, 0)) / 10000000,
+        2
+      ) AS demand
+      FROM water.aowt_billprint_mas
+      WHERE num_billprint_ulbid = :ulbId
+        AND TRUNC(dat_billprint_insdate) >= TO_DATE(:fromDate, 'DD-Mon-YYYY')
+    `;
+
+    const result = await executeQuery(sql, { ulbId, fromDate }, {
+      outFormat: oracledb.OUT_FORMAT_OBJECT
+    });
+
+    const demand = result.rows && result.rows.length > 0 ? result.rows[0].DEMAND : 0;
+
+    res.json({ success: true, data: { demand: demand || 0 } });
+
+  } catch (err) {
+    console.error('Water Tax Total Demand Fetch Error:', err);
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+/**
  * Mapping from frontend card title (lowercase) → Oracle DB flag code
  * Add new entries here as the DBA confirms the correct flag codes.
  */
@@ -710,6 +748,50 @@ const fetchMonthwiseData = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+/**
+ * Fetch Estate property stats from aost_prop_mas
+ * Returns: total_properties, lease_properties, rented_properties, vacant_properties
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+const fetchEstateStats = async (req, res) => {
+  try {
+    const ulbId = req.query.ulbId ? Number(req.query.ulbId) : 1670;
+
+    const sql = `
+      SELECT
+        COUNT(p.var_prop_propno)                                             AS total_properties,
+        SUM(CASE WHEN p.var_prop_type = 'L' THEN 1 ELSE 0 END)             AS lease_properties,
+        SUM(CASE WHEN p.var_prop_type = 'R' THEN 1 ELSE 0 END)             AS rented_properties,
+        SUM(CASE WHEN p.var_prop_type IS NULL
+                   OR p.var_prop_type = '' THEN 1 ELSE 0 END)              AS vacant_properties
+      FROM estate.aost_prop_mas p
+      WHERE p.num_prop_ulbid = :ulbId
+    `;
+
+    const result = await executeQuery(sql, { ulbId }, {
+      outFormat: oracledb.OUT_FORMAT_OBJECT
+    });
+
+    const row = result.rows && result.rows.length > 0 ? result.rows[0] : {};
+
+    res.json({
+      success: true,
+      data: {
+        total_properties: Number(row.TOTAL_PROPERTIES) || 0,
+        lease_properties:  Number(row.LEASE_PROPERTIES)  || 0,
+        rented_properties: Number(row.RENTED_PROPERTIES) || 0,
+        vacant_properties: Number(row.VACANT_PROPERTIES) || 0,
+      }
+    });
+
+  } catch (err) {
+    console.error('Estate Stats Fetch Error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
 module.exports = {
   fetchMonthwiseData,
   fetchDashboardDataNew,
@@ -720,5 +802,6 @@ module.exports = {
   fetchRTSULBServiceWiseData,
   fetchRTSStatusWiseData,
   fetchRTSApplicationDetailData,
-  fetchMonthwiseData
+  fetchWaterTaxTotalDemand,
+  fetchEstateStats,
 };
