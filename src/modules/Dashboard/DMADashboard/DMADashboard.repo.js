@@ -180,6 +180,13 @@ order by m.num_seqno
     // Fix labels and formatting for Recovery Percentage modules
     if (Array.isArray(parsedJSON)) {
       parsedJSON.forEach(module => {
+        if (module.code === 'ILGLHRD' && module.metrics && module.metrics.length >= 3) {
+          // Swap Notice Gen Amt (index 1) and Total Notices (index 2)
+          const temp = module.metrics[1];
+          module.metrics[1] = module.metrics[2];
+          module.metrics[2] = temp;
+        }
+
         if (['PTAX', 'WAT', 'CFC', 'MRKT', 'ADVT'].includes(module.code)) {
           if (module.metrics && module.metrics[2]) {
             // Remove "(Amount in Cr)" from the label
@@ -672,6 +679,11 @@ const FLAG_MAP = {
   "works":               "WORKS",
   "rts":                 "RTS",
   "advertisement":       "ADVT",
+  "illegal hoarding":    "ILHORD",
+  "illegalhoarding":     "ILHORD",
+  "illegal hording":     "ILHORD",
+  "illegalhording":      "ILHORD",
+  "mandap":              "MNDP",
 };
 
 /**
