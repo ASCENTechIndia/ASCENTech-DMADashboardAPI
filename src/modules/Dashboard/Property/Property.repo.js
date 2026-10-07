@@ -1,4 +1,4 @@
-
+﻿
 const oracledb = require('oracledb');
 const { executeQuery } = require('../../../db/queryExecutor');
 
@@ -356,7 +356,7 @@ LEFT JOIN BILL B
 LEFT JOIN ADMINS.AOMA_CORPORATION_MAS C
        ON R.ULBID = C.NUM_CORPORATION_ID
 
-GROUP BY ROLLUP(C.var_corp_mshortname)
+GROUP BY C.var_corp_mshortname
 
 ORDER BY
 // CASE

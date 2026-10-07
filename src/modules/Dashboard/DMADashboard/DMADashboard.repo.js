@@ -1,545 +1,525 @@
 
 const oracledb = require('oracledb');
 const { executeQuery } = require('../../../db/queryExecutor');
+const { executeProcedure } = require('../../../db/procedureExecutor');
 
-/**
- * Normalize user ID to ensure it starts with 'E'
- */
 function normalizeUserId(userId) {
   const value = String(userId || '').trim();
-  if (!value) {
-    return value;
-  }
+  if (!value) return value;
   return value.startsWith('E') ? value : `E${value}`;
 }
 
-/**
- * Pad a value with leading zeros to 2 digits
- */
-function pad2(value) {
-  return String(value).padStart(2, '0');
+
+function isValidUlbId(ulbId) {
+  return (
+    ulbId !== null &&
+    ulbId !== undefined &&
+    ulbId !== 'ALL' &&
+    ulbId !== '0' &&
+    ulbId !== 'undefined' &&
+    ulbId !== 'null' &&
+    !isNaN(Number(ulbId)) &&
+    Number(ulbId) > 0
+  );
 }
 
-/**
- * Get number of days in a month
- */
-function daysInMonth(month, year) {
-  return new Date(year, month, 0).getDate();
+
+function fixDecimalsInJson(str) {
+  return str.replace(/(\s|:)\.(\d+)/g, '$10.$2');
 }
 
-/**
- * Fetch DMA Dashboard data with module metrics and status information
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
+
+const FLAG_MAP = {
+  'water tax':              'WAT',
+  'water':                  'WAT',
+  'property tax':           'PT',
+  'estate':                 'ESTD',
+  'grievances':             'CRMD',
+  'grievance':              'CRMD',
+  'crmd':                   'CRMD',
+  'cfc':                    'CFC',
+  'accounts':               'ACCOUNT',
+  'account':                'ACCOUNT',
+  'acc':                    'ACCOUNT',
+  'marriage':               'MRRG',
+  'marriage registration':  'MRRG',
+  'birth & death':          'BAND',
+  'bnd':                    'BAND',
+  'fire':                   'FIRE',
+  'legal':                  'LEGL',
+  'market':                 'MRKT',
+  'social welfare':         'SWEL',
+  'inward outward':         'INW',
+  'asset management':       'ASSET',
+  'works':                  'WORKS',
+  'rts':                    'RTS',
+  'advertisement':          'ADVT',
+  'illegal hoarding':       'ILHORD',
+  'illegalhoarding':        'ILHORD',
+  'illegal hording':        'ILHORD',
+  'illegalhording':         'ILHORD',
+  'mandap':                 'MNDP',
+  'tanker':                 'TNKR',
+  'tnkr':                   'TNKR',
+};
+
+// Modules where column-3 is Recovery % instead of a plain number
+const RECOVERY_PCT_MODULES = ['PTAX', 'WAT', 'CFC', 'MRKT', 'ADVT'];
+
 const fetchDashboardDataNew = async (req, res) => {
   try {
     const { ulbId } = req.query;
+    const specificUlb = isValidUlbId(ulbId);
 
-    let ulbCondition = "AND d.num_dashboard_ulbid NOT IN (550, 1, 5)";
-    let configJoin = "";
     const params = {};
 
-    if (ulbId && ulbId !== 'ALL') {
-      ulbCondition = "AND d.num_dashboard_ulbid = :ulbId";
-      configJoin = "AND EXISTS (SELECT 1 FROM admins.AOMA_DMADASHBOARDCONFIG_MAS dc WHERE m.var_module_code = dc.var_dashboardconfg_modulecode AND dc.num_dashboardconfg_ulbid = :ulbId AND dc.var_dashboardconfg_chr_active = 'Y')";
+    // WHERE / JOIN clauses that change based on ALL vs specific corporation
+    let ulbCondition = 'AND d.num_dashboard_ulbid NOT IN (550, 1, 5)';
+    let configJoin   = '';
+    let rtsTotal, rtsApproved, rtsPending;
+
+    if (specificUlb) {
       params.ulbId = Number(ulbId);
+      ulbCondition = 'AND d.num_dashboard_ulbid = :ulbId';
+      configJoin   = `AND EXISTS (
+                        SELECT 1 FROM admins.AOMA_DMADASHBOARDCONFIG_MAS dc
+                        WHERE  m.var_module_code               = dc.var_dashboardconfg_modulecode
+                          AND  dc.num_dashboardconfg_ulbid     = :ulbId
+                          AND  dc.var_dashboardconfg_chr_active = 'Y'
+                      )`;
+
+      // Corporation-specific RTS counts (live from vw_dashborddata)
+      rtsTotal    = `(SELECT COUNT(*)           FROM aorts.vw_dashborddata WHERE ulbid = :ulbId AND ulbid NOT IN (550,1,5))`;
+      rtsApproved = `(SELECT COUNT(*)           FROM aorts.vw_dashborddata WHERE ulbid = :ulbId AND ulbid NOT IN (550,1,5) AND status = 'Approved')`;
+      rtsPending  = `(SELECT COUNT(*)           FROM aorts.vw_dashborddata WHERE ulbid = :ulbId AND ulbid NOT IN (550,1,5) AND status IN ('Authorisation Pending','In Process','Verification Pending','Payment Pending'))`;
+    } else {
+      // ALL corporations — use pre-aggregated summary views (faster)
+      rtsTotal    = `(SELECT total_applications    FROM aorts.dmc_dashboard_summary)`;
+      rtsApproved = `(SELECT approved_applications FROM aorts.dmc_dashboard_summary)`;
+      rtsPending  = `(SELECT pending_applications  FROM aorts.vw_dhulerts_pending_apl)`;
     }
 
     const sql = `
       SELECT JSON_ARRAYAGG(
-         JSON_OBJECT(
-         'link' VALUE x.var_module_url,
-           'code' VALUE x.var_dasdboard_modulecode,
-           'title' VALUE x.var_module_title,
-           'colorcode' VALUE x.colorcode,
-           'metrics' VALUE JSON_ARRAY(
-               JSON_OBJECT(
-                   'label' VALUE x.column1_label,
-                   'value' VALUE x.total_column1
-               ),
-               JSON_OBJECT(
-                   'label' VALUE x.column2_label,
-                   'value' VALUE x.total_column2
-               ),
-               JSON_OBJECT(
-                   'label' VALUE x.column3_label,
-                   'value' VALUE x.total_column3
-               )
-           )
-         )
-          ORDER BY
+        JSON_OBJECT(
+          'link'      VALUE x.var_module_url,
+          'code'      VALUE x.var_dasdboard_modulecode,
+          'title'     VALUE x.var_module_title,
+          'colorcode' VALUE x.colorcode,
+          'metrics'   VALUE JSON_ARRAY(
+            JSON_OBJECT('label' VALUE x.column1_label, 'value' VALUE x.total_column1),
+            JSON_OBJECT('label' VALUE x.column2_label, 'value' VALUE x.total_column2),
+            JSON_OBJECT('label' VALUE x.column3_label, 'value' VALUE x.total_column3)
+          )
+        )
+        ORDER BY
+          -- RTS card always first
           CASE WHEN x.var_dasdboard_modulecode = 'RTS' THEN 0 ELSE 1 END,
-          CASE
-              WHEN NVL(x.total_column1,0) = 0
-               AND NVL(x.total_column2,0) = 0
-               AND NVL(x.total_column3,0) = 0
-              THEN 1
-              ELSE 0
-          END,
+          -- Cards with all-zero data pushed to bottom
+          CASE WHEN NVL(x.total_column1,0) = 0
+                AND NVL(x.total_column2,0) = 0
+                AND NVL(x.total_column3,0) = 0
+               THEN 1 ELSE 0 END,
           x.num_module_orderby
-        
-    RETURNING CLOB
-       ) AS dashboard_json
-FROM
-(
-    SELECT
-        d.var_dasdboard_modulecode,
-        m.var_module_title,
-        m.num_seqno,  m.num_seqno AS num_module_orderby,
-        '' AS var_module_url,
-           case when d.var_dasdboard_modulecode = 'RTS' then 
-        (select total_applications from aorts.dmc_dashboard_summary) else
-        SUM(NVL(d.num_dasdboard_column1,0))end AS total_column1,
+        RETURNING CLOB
+      ) AS dashboard_json
+      FROM (
+        SELECT
+          d.var_dasdboard_modulecode,
+          m.var_module_title,
+          m.num_seqno                AS num_module_orderby,
+          ''                         AS var_module_url,
 
+          -- Column 1: RTS → live count, others → stored aggregate
+          CASE WHEN d.var_dasdboard_modulecode = 'RTS'
+               THEN ${rtsTotal}
+               ELSE SUM(NVL(d.num_dasdboard_column1, 0))
+          END AS total_column1,
 
-  case when d.var_dasdboard_modulecode = 'RTS' then 
-        (select approved_applications from aorts.dmc_dashboard_summary) else
-        SUM(NVL(d.num_dasdboard_column2,0)) end  AS total_column2,
+          -- Column 2: RTS → approved count, others → stored aggregate
+          CASE WHEN d.var_dasdboard_modulecode = 'RTS'
+               THEN ${rtsApproved}
+               ELSE SUM(NVL(d.num_dasdboard_column2, 0))
+          END AS total_column2,
 
- CASE
+          -- Column 3: recovery % for financial modules, pending for RTS, aggregate otherwise
+          CASE
             WHEN d.var_dasdboard_modulecode IN ('PTAX','WAT','CFC','MRKT','ADVT')
-            THEN ROUND(SUM(NVL(d.num_dasdboard_column2,0))* 100 /NULLIF(SUM(NVL(d.num_dasdboard_column1,0)),0),2 )
-             when d.var_dasdboard_modulecode = 'RTS' then
-            (select pending_applications from aorts.vw_dhulerts_pending_apl)
-            ELSE SUM(NVL(d.num_dasdboard_column3,0))
-        END AS total_column3,
+              THEN ROUND(SUM(NVL(d.num_dasdboard_column2,0)) * 100
+                       / NULLIF(SUM(NVL(d.num_dasdboard_column1,0)), 0), 2)
+            WHEN d.var_dasdboard_modulecode = 'RTS'
+              THEN ${rtsPending}
+            ELSE SUM(NVL(d.num_dasdboard_column3, 0))
+          END AS total_column3,
 
+          MAX(c1.var_column_label) AS column1_label,
+          MAX(c2.var_column_label) AS column2_label,
+          MAX(c3.var_column_label) AS column3_label,
 
-        MAX(c1.var_column_label) AS column1_label,
-        MAX(c2.var_column_label) AS column2_label,
-        MAX(c3.var_column_label) AS column3_label,
-
-        CASE
+          -- Freshness colour: ≤30 days = GREEN, >30 = YELLOW
+          CASE
             WHEN MAX(SYSDATE - d.dat_dasdboard_transdt) <= 30 THEN 'GREEN'
-            WHEN MAX(SYSDATE - d.dat_dasdboard_transdt) > 30 THEN 'YELLOW'
+            WHEN MAX(SYSDATE - d.dat_dasdboard_transdt) >  30 THEN 'YELLOW'
             ELSE 'Light_Coral'
-        END AS colorcode
+          END AS colorcode
 
-    FROM admins.aoms_dashboard_det d
+        FROM admins.aoms_dashboard_det d
 
-    INNER JOIN admins.aoms_dashboard_module_mst m
-        ON m.var_module_code = d.var_dasdboard_modulecode
-       AND d.num_dashboard_ulbid = m.num_ulbid
+        INNER JOIN admins.aoms_dashboard_module_mst m
+               ON  m.var_module_code    = d.var_dasdboard_modulecode
+              AND  d.num_dashboard_ulbid = m.num_ulbid
 
-    LEFT JOIN admins.aoms_dashboard_module_column_mst c1
-        ON c1.var_module_code = d.var_dasdboard_modulecode
-       AND c1.num_column_no = 1
-       AND c1.chr_active = 'Y'
+        LEFT JOIN admins.aoms_dashboard_module_column_mst c1
+               ON  c1.var_module_code = d.var_dasdboard_modulecode
+              AND  c1.num_column_no   = 1
+              AND  c1.chr_active      = 'Y'
 
-    LEFT JOIN admins.aoms_dashboard_module_column_mst c2
-        ON c2.var_module_code = d.var_dasdboard_modulecode
-       AND c2.num_column_no = 2
-       AND c2.chr_active = 'Y'
+        LEFT JOIN admins.aoms_dashboard_module_column_mst c2
+               ON  c2.var_module_code = d.var_dasdboard_modulecode
+              AND  c2.num_column_no   = 2
+              AND  c2.chr_active      = 'Y'
 
-    LEFT JOIN admins.aoms_dashboard_module_column_mst c3
-        ON c3.var_module_code = d.var_dasdboard_modulecode
-       AND c3.num_column_no = 3
-       AND c3.chr_active = 'Y'
+        LEFT JOIN admins.aoms_dashboard_module_column_mst c3
+               ON  c3.var_module_code = d.var_dasdboard_modulecode
+              AND  c3.num_column_no   = 3
+              AND  c3.chr_active      = 'Y'
 
-    WHERE m.chr_active = 'Y'
-      ${ulbCondition}
-      ${configJoin}
+        WHERE m.chr_active = 'Y'
+          ${ulbCondition}
+          ${configJoin}
 
-   GROUP BY
-        d.var_dasdboard_modulecode,
-        m.var_module_title,
-        m.num_seqno
-order by m.num_seqno
-) x
-	`;
+        GROUP BY
+          d.var_dasdboard_modulecode,
+          m.var_module_title,
+          m.num_seqno
+        ORDER BY m.num_seqno
+      ) x
+    `;
 
-    const result = await executeQuery(sql, params, {
-      outFormat: oracledb.OUT_FORMAT_OBJECT
-    });
+    const result = await executeQuery(sql, params, { outFormat: oracledb.OUT_FORMAT_OBJECT });
 
     if (!result.rows || result.rows.length === 0) {
       return res.json({ success: true, data: [] });
     }
 
+    // CLOB → string
     const lob = result.rows[0].DASHBOARD_JSON;
-
-    let jsonString = "";
+    let jsonString = '';
     if (lob && lob.setEncoding) {
       jsonString = await new Promise((resolve, reject) => {
-        let clobData = "";
-        lob.setEncoding("utf8");
-        lob.on("data", chunk => clobData += chunk);
-        lob.on("end", () => resolve(clobData));
-        lob.on("error", reject);
+        let buf = '';
+        lob.setEncoding('utf8');
+        lob.on('data',  chunk => { buf += chunk; });
+        lob.on('end',   ()    => resolve(buf));
+        lob.on('error', reject);
       });
     } else {
-      jsonString = lob;
+      jsonString = lob || '';
     }
 
-    // Fix bad decimals like ".02" → "0.02"
-    const fixedJson = jsonString.replace(/(\s|:)\.(\d+)/g, "$10.$2");
+    const parsedJSON = JSON.parse(fixDecimalsInJson(jsonString));
 
-    const parsedJSON = JSON.parse(fixedJson);
-
-    // Fix labels and formatting for Recovery Percentage modules
+    // Post-process module data
     if (Array.isArray(parsedJSON)) {
-      parsedJSON.forEach(module => {
-        if (module.code === 'ILGLHRD' && module.metrics && module.metrics.length >= 3) {
-          // Swap Notice Gen Amt (index 1) and Total Notices (index 2)
-          const temp = module.metrics[1];
-          module.metrics[1] = module.metrics[2];
-          module.metrics[2] = temp;
+      parsedJSON.forEach(mod => {
+        // Illegal Hoarding: swap metrics[1] and metrics[2]
+        if (mod.code === 'ILGLHRD' && mod.metrics?.length >= 3) {
+          [mod.metrics[1], mod.metrics[2]] = [mod.metrics[2], mod.metrics[1]];
         }
 
-        if (['PTAX', 'WAT', 'CFC', 'MRKT', 'ADVT'].includes(module.code)) {
-          if (module.metrics && module.metrics[2]) {
-            // Remove "(Amount in Cr)" from the label
-            module.metrics[2].label = "Recovery Percentage";
-            // Append % so frontend doesn't treat it as currency
-            if (module.metrics[2].value !== null && module.metrics[2].value !== undefined) {
-              module.metrics[2].value = `${module.metrics[2].value}%`;
-            }
+        // Financial modules: label + format Recovery %
+        if (RECOVERY_PCT_MODULES.includes(mod.code) && mod.metrics?.[2]) {
+          mod.metrics[2].label = 'Recovery Percentage';
+          if (mod.metrics[2].value != null) {
+            mod.metrics[2].value = `${mod.metrics[2].value}%`;
           }
         }
       });
     }
 
-    res.json({ success: true, data: parsedJSON });
+    return res.json({ success: true, data: parsedJSON });
 
   } catch (err) {
-    console.error("Dashboard Fetch Error:", err);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    console.error('Dashboard Fetch Error:', err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
-/**
- * Fetch ULB (Corporation) list for dropdown
- * Filters only Municipal Corporations
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
+
 const fetchULBList = async (req, res) => {
   try {
     const sql = `
       SELECT
-        num_corporation_id   AS corpid,
-        var_corporation_name AS marname,
+        num_corporation_id    AS corpid,
+        var_corporation_name  AS marname,
         var_corporation_mname AS engname,
-        var_corporation_code AS corpcode
+        var_corporation_code  AS corpcode
       FROM admins.aoma_corporation_mas
       WHERE LOWER(var_corporation_mname) LIKE '%corporation%'
-         OR var_corporation_name LIKE '%महानगरपालिका%'
+         OR var_corporation_name         LIKE '%महानगरपालिका%'
       ORDER BY var_corporation_mname ASC
     `;
 
-    const result = await executeQuery(sql, {}, {
-      outFormat: oracledb.OUT_FORMAT_OBJECT
-    });
-
-    const data = result.rows || [];
-
-    res.json({ success: true, data });
+    const result = await executeQuery(sql, {}, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+    return res.json({ success: true, data: result.rows || [] });
 
   } catch (err) {
-    console.error("ULB List Fetch Error:", err);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    console.error('ULB List Fetch Error:', err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
-/**
- * Fetch RTS ULB Wise data with application status breakdown
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
+
+
+const fetchLastSyncDate = async (req, res) => {
+  try {
+    const { ulbId } = req.query;
+    const params = {};
+
+    let whereClause;
+    if (isValidUlbId(ulbId)) {
+      whereClause = 'WHERE num_dashboard_ulbid = :ulbId';
+      params.ulbId = Number(ulbId);
+    } else {
+      whereClause = 'WHERE num_dashboard_ulbid = 1670';
+    }
+
+    const sql = `
+      SELECT TO_CHAR(NVL(MAX(dat_dasdboard_transsryncdt), SYSDATE), 'DD Mon YYYY HH:MI AM') AS LAST_SYNC_DATE
+      FROM admins.aoms_dashboard_det
+      ${whereClause}
+    `;
+
+    const result = await executeQuery(sql, params, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+    const data   = result.rows?.[0]?.LAST_SYNC_DATE ?? null;
+    return res.json({ success: true, data });
+
+  } catch (err) {
+    console.error('Last Sync Date Fetch Error:', err);
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+
+const RTS_CTE = `
+  WITH dashbord AS (
+    SELECT
+      var_dept_engname, var_service_eng_name,
+      num_application_deptid, num_application_serviceid,
+      CASE WHEN status = 'New'                   THEN 1 ELSE 0 END AS new,
+      CASE WHEN status = 'Approved'              THEN 1 ELSE 0 END AS approved,
+      CASE WHEN status = 'Verification Pending'  THEN 1 ELSE 0 END AS verification_pending,
+      CASE WHEN status = 'In Process'            THEN 1 ELSE 0 END AS in_process,
+      CASE WHEN status = 'Denied'                THEN 1 ELSE 0 END AS denied,
+      CASE WHEN status = 'Delivered'             THEN 1 ELSE 0 END AS deliverd,
+      CASE WHEN status IN ('Authorisation Pending','In Process','Verification Pending')
+                                                 THEN 1 ELSE 0 END AS authorisation_pending,
+      CASE WHEN status IN ('Authorisation Reject','Denied')
+                                                 THEN 1 ELSE 0 END AS authorisation_reject,
+      CASE WHEN status = 'Payment Pending'       THEN 1 ELSE 0 END AS payment_pending,
+      CASE WHEN status IS NOT NULL               THEN 1 ELSE 0 END AS total,
+      application_status, ulbid
+    FROM aorts.vw_dashborddata
+    WHERE ulbid NOT IN (550, 1, 5)
+  )
+`;
+
+
 const fetchRTSULBWiseData = async (req, res) => {
   try {
-    const ulbId = req.query.ulbId;
-    let whereClause = "";
+    const { ulbId } = req.query;
     const binds = {};
+    let whereClause = '';
 
-    if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
-      whereClause += " AND ulbid = :ulbId";
+    if (isValidUlbId(ulbId)) {
+      whereClause = 'AND ulbid = :ulbId';
       binds.ulbId = Number(ulbId);
     }
 
     const sql = `
-      WITH dashbord
-           AS (SELECT var_dept_engname, var_service_eng_name,
-                      num_application_deptid, num_application_serviceid,
-                      CASE WHEN status = 'New' THEN 1 ELSE 0 END AS new,
-                      CASE WHEN status = 'Approved' THEN 1 ELSE 0 END AS approved,
-                      CASE WHEN status = 'Verification Pending' THEN 1 ELSE 0 END AS verification_pending,
-                      CASE WHEN status = 'In Process' THEN 1 ELSE 0 END AS in_process,
-                      CASE WHEN status = 'Denied' THEN 1 ELSE 0 END AS denied,
-                      CASE WHEN status = 'Delivered' THEN 1 ELSE 0 END AS deliverd,
-                      CASE WHEN status IN ('Authorisation Pending', 'In Process', 'Verification Pending') THEN 1 ELSE 0 END AS authorisation_pending,
-                      CASE WHEN status IN ('Authorisation Reject', 'Denied') THEN 1 ELSE 0 END AS authorisation_reject,
-                      CASE WHEN status = 'Payment Pending' THEN 1 ELSE 0 END AS payment_pending,
-                      CASE WHEN status IS NOT NULL THEN 1 ELSE 0 END AS total,
-                      application_status, ulbid
-                 FROM aorts.vw_dashborddata
-                WHERE ulbid NOT IN (550, 1, 5))
-      SELECT var_corporation_shortname, num_corporation_id, SUM (new) new,
-             SUM (approved) approved,
-             SUM (verification_pending) verification_pending,
-             SUM (in_process) process, SUM (denied) denied, SUM (deliverd) deliverd,
-             SUM (authorisation_pending) authorisation_pending,
-             SUM (authorisation_reject) authorisation_reject,
-             SUM (payment_pending) payment_pending, SUM (total) total
-        FROM dashbord
-             INNER JOIN admins.aoma_corporation_mas ON num_corporation_id = ulbid
-			  ${whereClause} 
+      ${RTS_CTE}
+      SELECT
+        var_corporation_shortname, num_corporation_id,
+        SUM(new)                  AS new,
+        SUM(approved)             AS approved,
+        SUM(verification_pending) AS verification_pending,
+        SUM(in_process)           AS process,
+        SUM(denied)               AS denied,
+        SUM(deliverd)             AS deliverd,
+        SUM(authorisation_pending) AS authorisation_pending,
+        SUM(authorisation_reject)  AS authorisation_reject,
+        SUM(payment_pending)       AS payment_pending,
+        SUM(total)                 AS total
+      FROM dashbord
+      INNER JOIN admins.aoma_corporation_mas ON num_corporation_id = ulbid
+      ${whereClause}
       GROUP BY var_corporation_shortname, num_corporation_id, var_corporation_name
       ORDER BY var_corporation_name
     `;
 
-    const result = await executeQuery(sql, binds, {
-      outFormat: oracledb.OUT_FORMAT_OBJECT
-    });
-
-    const data = result.rows || [];
-
-    res.json({ success: true, data: data });
+    const result = await executeQuery(sql, binds, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+    return res.json({ success: true, data: result.rows || [] });
 
   } catch (err) {
-    console.error("RTS ULB Wise Fetch Error:", err);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    console.error('RTS ULB Wise Fetch Error:', err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
-/**
- * Fetch RTS ULB Department Wise data
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
+
 const fetchRTSULBDeptWiseData = async (req, res) => {
   try {
     const { ulbId } = req.query;
 
     if (!ulbId) {
-      return res.status(400).json({
-        success: false,
-        message: "ulbId is required"
-      });
+      return res.status(400).json({ success: false, message: 'ulbId is required' });
     }
 
     const sql = `
-      with dashbord as( 
-        select var_dept_engname,var_service_eng_name, num_application_deptid, num_application_serviceid, 
-        case when status= 'New' then 1 else 0 end as New, 
-        case when status = 'Approved' then 1 else 0 end as Approved, 
-        case when status = 'Verification Pending' then 1 else 0 end as Verification_Pending, 
-        case when status = 'In Process' then 1 else 0 end as in_Process, 
-        case when status = 'Denied' then 1 else 0 end as Denied, 
-        case when status = 'Delivered' then 1 else 0 end as Deliverd, 
-        case when status in ('Authorisation Pending','In Process','Verification Pending') then 1 else 0 end as Authorisation_Pending, 
-        case when status in ('Authorisation Reject','Denied') then 1 else 0 end as Authorisation_Reject, 
-        case when status = 'Payment Pending' then 1 else 0 end as Payment_Pending,  
-        case when status is not null then 1 else 0 end as total,application_status,ulbid 
-        from aorts.vw_dashborddata  where ulbid not in ( 550,1,5) 
-      ) 
-      select
-        var_dept_engname ,num_application_deptid, 
-        sum(New) New,sum(Approved) Approved,sum(Verification_Pending) Verification_Pending 
-        ,sum(in_Process) Process,sum(Denied) Denied,sum(Deliverd) Deliverd,sum(Authorisation_Pending) Authorisation_Pending, 
-        sum(Authorisation_Reject) Authorisation_Reject,sum(Payment_Pending) Payment_Pending,sum(total) total 
-      from dashbord 
-      where ulbid = :ulbId
-      group by var_dept_engname ,num_application_deptid
+      ${RTS_CTE}
+      SELECT
+        var_dept_engname, num_application_deptid,
+        SUM(new)                   AS new,
+        SUM(approved)              AS approved,
+        SUM(verification_pending)  AS verification_pending,
+        SUM(in_process)            AS process,
+        SUM(denied)                AS denied,
+        SUM(deliverd)              AS deliverd,
+        SUM(authorisation_pending) AS authorisation_pending,
+        SUM(authorisation_reject)  AS authorisation_reject,
+        SUM(payment_pending)       AS payment_pending,
+        SUM(total)                 AS total
+      FROM dashbord
+      WHERE ulbid = :ulbId
+      GROUP BY var_dept_engname, num_application_deptid
     `;
 
-    const result = await executeQuery(sql, { ulbId }, {
-      outFormat: oracledb.OUT_FORMAT_OBJECT
-    });
-
-    const data = result.rows || [];
-
-    res.json({ success: true, data: data });
+    const result = await executeQuery(sql, { ulbId }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+    return res.json({ success: true, data: result.rows || [] });
 
   } catch (err) {
-    console.error("RTS ULB Dept Wise Fetch Error:", err);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    console.error('RTS ULB Dept Wise Fetch Error:', err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
-/**
- * Fetch RTS ULB Service Wise data
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
+
 const fetchRTSULBServiceWiseData = async (req, res) => {
   try {
     const { ulbId, deptId } = req.query;
 
     if (!ulbId || !deptId) {
-      return res.status(400).json({
-        success: false,
-        message: "ulbId and deptId are required"
-      });
+      return res.status(400).json({ success: false, message: 'ulbId and deptId are required' });
     }
 
     const sql = `
-      with dashbord as( 
-        select var_dept_engname,var_service_eng_name, num_application_deptid, num_application_serviceid, 
-        case when status= 'New' then 1 else 0 end as New, 
-        case when status = 'Approved' then 1 else 0 end as Approved, 
-        case when status = 'Verification Pending' then 1 else 0 end as Verification_Pending, 
-        case when status = 'In Process' then 1 else 0 end as in_Process, 
-        case when status = 'Denied' then 1 else 0 end as Denied, 
-        case when status = 'Delivered' then 1 else 0 end as Deliverd, 
-        case when status in ('Authorisation Pending','In Process','Verification Pending') then 1 else 0 end as Authorisation_Pending, 
-        case when status in ('Authorisation Reject','Denied') then 1 else 0 end as Authorisation_Reject, 
-        case when status = 'Payment Pending' then 1 else 0 end as Payment_Pending,  
-        case when status is not null then 1 else 0 end as total,application_status,ulbid 
-        from aorts.vw_dashborddata  where ulbid not in ( 550,1,5) 
-      ) 
-      select 
-        var_service_eng_name , 
-        sum(New) New,sum(Approved) Approved,sum(Verification_Pending) Verification_Pending 
-        ,sum(in_Process) Process,sum(Denied) Denied,sum(Deliverd) Deliverd,sum(Authorisation_Pending) Authorisation_Pending, 
-        sum(Authorisation_Reject) Authorisation_Reject,sum(Payment_Pending) Payment_Pending,sum(total) total 
-      from dashbord 
-      where num_application_deptid = :deptId and ulbid = :ulbId
-      group by var_service_eng_name
+      ${RTS_CTE}
+      SELECT
+        var_service_eng_name,
+        SUM(new)                   AS new,
+        SUM(approved)              AS approved,
+        SUM(verification_pending)  AS verification_pending,
+        SUM(in_process)            AS process,
+        SUM(denied)                AS denied,
+        SUM(deliverd)              AS deliverd,
+        SUM(authorisation_pending) AS authorisation_pending,
+        SUM(authorisation_reject)  AS authorisation_reject,
+        SUM(payment_pending)       AS payment_pending,
+        SUM(total)                 AS total
+      FROM dashbord
+      WHERE ulbid = :ulbId
+        AND num_application_deptid = :deptId
+      GROUP BY var_service_eng_name
     `;
 
-    const result = await executeQuery(sql, { ulbId, deptId }, {
-      outFormat: oracledb.OUT_FORMAT_OBJECT
-    });
-
-    const data = result.rows || [];
-
-    res.json({ success: true, data: data });
+    const result = await executeQuery(sql, { ulbId, deptId }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+    return res.json({ success: true, data: result.rows || [] });
 
   } catch (err) {
-    console.error("RTS ULB Service Wise Fetch Error:", err);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    console.error('RTS ULB Service Wise Fetch Error:', err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
-/**
- * Fetch RTS Status Wise data
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
+
 const fetchRTSStatusWiseData = async (req, res) => {
   try {
     const { status, ulbId } = req.query;
 
     if (!status) {
-      return res.status(400).json({
-        success: false,
-        message: "status is required"
-      });
+      return res.status(400).json({ success: false, message: 'status is required' });
     }
+
+    const isTotal = (status === 'TOT');
+    const params  = {};
+
+    // Dynamic column: total count vs specific status count
+    const statusColumn = isTotal
+      ? 'SUM(total) AS status'
+      : `CASE application_status
+           WHEN 'NW' THEN SUM(new)
+           WHEN 'AP' THEN SUM(approved)
+           WHEN 'VP' THEN SUM(verification_pending)
+           WHEN 'IP' THEN SUM(in_process)
+           WHEN 'DN' THEN SUM(denied)
+           WHEN 'DL' THEN SUM(deliverd)
+           WHEN 'CP' THEN SUM(authorisation_pending)
+           WHEN 'CR' THEN SUM(authorisation_reject)
+           WHEN 'PP' THEN SUM(payment_pending)
+         END AS status,
+         application_status`;
 
     let sql = `
-      with dashbord as( 
-        select var_dept_engname,var_service_eng_name, num_application_deptid, num_application_serviceid, 
-        case when status= 'New' then 1 else 0 end as New, 
-        case when status = 'Approved' then 1 else 0 end as Approved, 
-        case when status = 'Verification Pending' then 1 else 0 end as Verification_Pending, 
-        case when status = 'In Process' then 1 else 0 end as in_Process, 
-        case when status = 'Denied' then 1 else 0 end as Denied, 
-        case when status = 'Delivered' then 1 else 0 end as Deliverd, 
-        case when status in ('Authorisation Pending','In Process','Verification Pending') then 1 else 0 end as Authorisation_Pending, 
-        case when status in ('Authorisation Reject','Denied') then 1 else 0 end as Authorisation_Reject, 
-        case when status = 'Payment Pending' then 1 else 0 end as Payment_Pending,  
-        case when status is not null then 1 else 0 end as total,application_status,ulbid 
-        from aorts.vw_dashborddata  where ulbid not in ( 550,1,5) 
-      ) 
-      select 
-        var_dept_engname,num_application_deptid,
-        ${status === 'TOT'
-        ? 'SUM(total) status'
-        : `case application_status 
-              when 'NW' then SUM (new) 
-              when 'AP' then SUM(approved) 
-              when 'VP' then SUM(verification_pending) 
-              when 'IP' then SUM(in_process) 
-              when 'DN' then SUM(denied) 
-              when 'DL' then SUM(deliverd) 
-              when 'CP' then SUM(authorisation_pending) 
-              when 'CR' then SUM(authorisation_reject) 
-              when 'PP' then SUM(payment_pending) 
-             end status, application_status`
-      }
-      FROM dashbord 
-      WHERE 1 = 1 
+      ${RTS_CTE}
+      SELECT
+        var_dept_engname, num_application_deptid,
+        ${statusColumn}
+      FROM dashbord
+      WHERE 1 = 1
     `;
 
-    const params = {};
-
-    if (status !== 'TOT') {
-      sql += ` AND application_status = :status `;
+    if (!isTotal) {
+      sql += ' AND application_status = :status ';
       params.status = status;
-      if (ulbId) {
-        sql += ` AND ulbid = :ulbId `;
-        params.ulbId = ulbId;
-      }
-      sql += ` GROUP BY var_dept_engname,num_application_deptid, application_status `;
-    } else {
-      if (ulbId) {
-        sql += ` AND ulbid = :ulbId `;
-        params.ulbId = ulbId;
-      }
-      sql += ` GROUP BY var_dept_engname,num_application_deptid `;
+    }
+    if (ulbId) {
+      sql += ' AND ulbid = :ulbId ';
+      params.ulbId = ulbId;
     }
 
-    const result = await executeQuery(sql, params, {
-      outFormat: oracledb.OUT_FORMAT_OBJECT
-    });
+    sql += isTotal
+      ? ' GROUP BY var_dept_engname, num_application_deptid'
+      : ' GROUP BY var_dept_engname, num_application_deptid, application_status';
 
-    const data = result.rows || [];
-
-    res.json({ success: true, data: data });
+    const result = await executeQuery(sql, params, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+    return res.json({ success: true, data: result.rows || [] });
 
   } catch (err) {
-    console.error("RTS Status Wise Fetch Error:", err);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    console.error('RTS Status Wise Fetch Error:', err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
-/**
- * Fetch RTS Application Detail data
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
+
+
 const fetchRTSApplicationDetailData = async (req, res) => {
   try {
     const { dept, status, ulbId } = req.query;
 
     if (!dept || !status) {
-      return res.status(400).json({
-        success: false,
-        message: "dept and status are required"
-      });
+      return res.status(400).json({ success: false, message: 'dept and status are required' });
     }
 
     let sql = `
-      SELECT 
-        VAR_DEPT_ENGNAME as DEPTNAME,
-        VAR_SERVICE_ENG_NAME as SERVICENAME,
-        OWNERNAME as OWNERNAME,
-        VAR_APPL_MOBNO as MOBNO,
-        VAR_APPL_EMAIL as EMAIL,
-        TO_CHAR(DAT_APPLICATION_INSDATE, 'DD-MM-YYYY') as APPLIDATE,
-        AMOUNT as AMOUNT,
-        TO_CHAR(DAT_APPLICATION_RECIEPTDATE, 'DD-MM-YYYY') as RECIEPTDATE,
-        STATUS as STATUS,
-        TO_CHAR(DAT_APPLICATION_DELIVEREDDATE, 'DD-MM-YYYY') as CERTIISSDATE
+      SELECT
+        VAR_DEPT_ENGNAME                                   AS DEPTNAME,
+        VAR_SERVICE_ENG_NAME                               AS SERVICENAME,
+        OWNERNAME                                          AS OWNERNAME,
+        VAR_APPL_MOBNO                                     AS MOBNO,
+        VAR_APPL_EMAIL                                     AS EMAIL,
+        TO_CHAR(DAT_APPLICATION_INSDATE,    'DD-MM-YYYY')  AS APPLIDATE,
+        AMOUNT                                             AS AMOUNT,
+        TO_CHAR(DAT_APPLICATION_RECIEPTDATE, 'DD-MM-YYYY') AS RECIEPTDATE,
+        STATUS                                             AS STATUS,
+        TO_CHAR(DAT_APPLICATION_DELIVEREDDATE,'DD-MM-YYYY') AS CERTIISSDATE
       FROM aorts.vw_dashborddata
       WHERE NUM_APPLICATION_DEPTID = :dept
     `;
@@ -547,85 +527,36 @@ const fetchRTSApplicationDetailData = async (req, res) => {
     const params = { dept };
 
     if (status !== 'TOT') {
-      sql += ` AND application_status = :status`;
+      sql += ' AND application_status = :status';
       params.status = status;
     }
-
     if (ulbId) {
-      sql += ` AND ulbid = :ulbId`;
+      sql += ' AND ulbid = :ulbId';
       params.ulbId = ulbId;
     }
 
-    const result = await executeQuery(sql, params, {
-      outFormat: oracledb.OUT_FORMAT_OBJECT
-    });
-
-    const data = result.rows || [];
-
-    res.json({ success: true, data: data });
+    const result = await executeQuery(sql, params, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+    return res.json({ success: true, data: result.rows || [] });
 
   } catch (err) {
-    console.error("RTS Application Detail Fetch Error:", err);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-/**
- * Fetch Last Sync Date
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
-const fetchLastSyncDate = async (req, res) => {
-  try {
-    const { ulbId } = req.query;
-
-    let ulbCondition = "";
-    const params = {};
-
-    if (ulbId && ulbId !== 'ALL' && ulbId !== 'null' && ulbId !== 'undefined') {
-      ulbCondition = "WHERE num_dashboard_ulbid = :ulbId";
-      params.ulbId = Number(ulbId);
-    } else {
-      ulbCondition = "WHERE num_dashboard_ulbid = 1670";
-    }
-
-    const sql = `
-      SELECT TO_CHAR( NVL(MAX(dat_dasdboard_transsryncdt),SYSDATE),'DD Mon YYYY HH:MI AM') AS LAST_SYNC_DATE
-      FROM admins.aoms_dashboard_det
-      ${ulbCondition}
-    `;
-
-    const result = await executeQuery(sql, params, {
-      outFormat: oracledb.OUT_FORMAT_OBJECT
-    });
-
-    const data = result.rows && result.rows.length > 0 ? result.rows[0].LAST_SYNC_DATE : null;
-
-    res.json({ success: true, data: data });
-
-  } catch (err) {
-    console.error("Last Sync Date Fetch Error:", err);
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    console.error('RTS Application Detail Fetch Error:', err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
 
-/**
- * Fetch Water Tax Total Demand from aowt_billprint_mas
- * Formula: ROUND(SUM(NVL(num_billprint_btotaltax,0) + NVL(num_billprint_ctotaltax,0))/10000000, 2)
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
 const fetchWaterTaxTotalDemand = async (req, res) => {
   try {
-    const ulbId = req.query.ulbId ? Number(req.query.ulbId) : 1670;
-    const fromDate = req.query.fromDate || '01-Apr-2026';
+    const rawUlbId   = req.query.ulbId;
+    const fromDate   = req.query.fromDate || '01-Apr-2026';
+    const specificUlb = isValidUlbId(rawUlbId);
+    const ulbId      = specificUlb ? Number(rawUlbId) : null;
+
+    const whereClause = specificUlb
+      ? "WHERE num_billprint_ulbid = :ulbId AND TRUNC(dat_billprint_insdate) >= TO_DATE(:fromDate, 'DD-Mon-YYYY')"
+      : "WHERE TRUNC(dat_billprint_insdate) >= TO_DATE(:fromDate, 'DD-Mon-YYYY')";
+
+    const binds = specificUlb ? { ulbId, fromDate } : { fromDate };
 
     const sql = `
       SELECT ROUND(
@@ -633,187 +564,133 @@ const fetchWaterTaxTotalDemand = async (req, res) => {
         2
       ) AS demand
       FROM water.aowt_billprint_mas
-      WHERE num_billprint_ulbid = :ulbId
-        AND TRUNC(dat_billprint_insdate) >= TO_DATE(:fromDate, 'DD-Mon-YYYY')
+      ${whereClause}
     `;
 
-    const result = await executeQuery(sql, { ulbId, fromDate }, {
-      outFormat: oracledb.OUT_FORMAT_OBJECT
-    });
-
-    const demand = result.rows && result.rows.length > 0 ? result.rows[0].DEMAND : 0;
-
-    res.json({ success: true, data: { demand: demand || 0 } });
+    const result = await executeQuery(sql, binds, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+    const demand = result.rows?.[0]?.DEMAND || 0;
+    return res.json({ success: true, data: { demand } });
 
   } catch (err) {
     console.error('Water Tax Total Demand Fetch Error:', err);
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
-/**
- * Mapping from frontend card title (lowercase) → Oracle DB flag code
- * Add new entries here as the DBA confirms the correct flag codes.
- */
-const FLAG_MAP = {
-  "water tax":           "WAT",
-  "water":               "WAT",
-  "property tax":        "PT",
-  "estate":              "ESTD",
-  "grievances":          "GRIV",
-  "cfc":                 "CFC",
-  "accounts":            "ACC",
-  "marriage":            "MRRG",
-  "marriage registration": "MRRG",
-  "birth & death":       "BAND",
-  "bnd":                 "BAND",
-  "fire":                "FIRE",
-  "legal":               "LEGL",
-  "market":              "MRKT",
-  "social welfare":      "SWEL",
-  "inward outward":      "INW",
-  "asset management":    "ASSET",
-  "works":               "WORKS",
-  "rts":                 "RTS",
-  "advertisement":       "ADVT",
-  "illegal hoarding":    "ILHORD",
-  "illegalhoarding":     "ILHORD",
-  "illegal hording":     "ILHORD",
-  "illegalhording":      "ILHORD",
-  "mandap":              "MNDP",
-};
 
-/**
- * Fetch monthwise dashboard data using aoma_dmadashboardmonthwise_fetch
- */
 const fetchMonthwiseData = async (req, res) => {
   try {
-    const ulbId = req.body?.ulbId || req.body?.ulbid || req.query?.ulbId || req.query?.ulbid;
-    const flag = req.body?.flag || req.query?.flag;
+    // ulbId can come from body (POST) or query (GET); 0 = ALL corporations
+    const rawUlbId = req.body?.ulbId || req.body?.ulbid || req.query?.ulbId || req.query?.ulbid;
+    const ulbId    = isValidUlbId(rawUlbId) ? Number(rawUlbId) : 0;
+
+    const flag   = req.body?.flag  || req.query?.flag  || '';
     const userId = req.user?.userid || req.body?.userId || req.query?.userId || '1';
 
-    // Convert human-readable flag to Oracle DB flag code
-    const dbFlag = FLAG_MAP[(flag || '').toLowerCase().trim()] || flag || '';
+    // Map human-readable card title → Oracle procedure flag code
+    const dbFlag = FLAG_MAP[flag.toLowerCase().trim()] || flag || '';
 
-    const params = [
+    console.log(`[MonthwiseFetch] ulbId=${ulbId} (raw=${rawUlbId}), flag=${dbFlag}`);
+
+    const procedureParams = [
       { value: normalizeUserId(userId), type: oracledb.STRING },
-      { value: Number(ulbId) || 0, type: oracledb.NUMBER },
-      { value: dbFlag, type: oracledb.STRING },
-      { out: true, type: oracledb.NUMBER },
-      { out: true, type: oracledb.STRING },
-      { out: true, type: oracledb.CLOB }
+      { value: ulbId,                   type: oracledb.NUMBER },
+      { value: dbFlag,                  type: oracledb.STRING },
+      { out: true,                      type: oracledb.NUMBER }, // p4 = error code
+      { out: true,                      type: oracledb.STRING }, // p5 = error message
+      { out: true,                      type: oracledb.CLOB   }, // p6 = JSON result
     ];
 
-    const { executeProcedure } = require('../../../db/procedureExecutor');
     const result = await executeProcedure({
-      name: "admins.aoma_dmadashboardmonthwise_fetch",
-      params: params
+      name:   'admins.aoma_dmadashboardmonthwise_fetch',
+      params: procedureParams,
     });
 
     if (!result.success || !result.outBinds) {
-      return res.status(500).json({ success: false, message: "Procedure execution failed" });
+      return res.status(500).json({ success: false, message: 'Procedure execution failed' });
     }
 
-    const errCode = result.outBinds.p4;
-    const errMsg = result.outBinds.p5;
-    // p6 is already a string — CLOB was read inside procedureExecutor before connection.close()
-    const clobString = result.outBinds.p6 || "";
+    const { p4: errCode, p5: errMsg, p6: clobString } = result.outBinds;
 
-    // Oracle convention: 9999 = Success, 0 = Success, any other value = Error
-    const isDbError = errCode !== null && errCode !== undefined && errCode !== 0 && errCode !== 9999;
+    // Oracle convention: 9999 or 0 = success; anything else = error
+    const isDbError = errCode != null && errCode !== 0 && errCode !== 9999;
     if (isDbError) {
-      return res.status(400).json({ success: false, message: errMsg || "Error from DB" });
+      return res.status(400).json({ success: false, message: errMsg || 'Error from DB' });
     }
-    const fixedJson = clobString.replace(/(\s|:)\.(\d+)/g, "$10.$2");
-    let parsedData = JSON.parse(fixedJson || "[]");
 
-    // For Market, calculate Recovery Percentage
+    let parsedData = JSON.parse(fixDecimalsInJson(clobString || '[]'));
+
+    // Market module: calculate Recovery % from demand & collection columns
     if (dbFlag === 'MRKT' && Array.isArray(parsedData)) {
       parsedData = parsedData.map(item => {
-        // Fallback to cash + cheque + online if total_collection is missing
-        const demand = Number(item.total_demand || item.totalDemand || 0);
-        const collection = Number(item.total_collection || item.totalCollection) || 
-                           ((Number(item.cash_collection) || 0) + 
-                            (Number(item.cheque_collection) || 0) + 
-                            (Number(item.online_collection) || 0));
-                            
-        let recoveryPercentage = 0;
-        if (demand > 0) {
-          recoveryPercentage = (collection / demand) * 100;
-        }
+        const demand     = Number(item.total_demand     || item.totalDemand     || 0);
+        const collection = Number(item.total_collection || item.totalCollection) ||
+                           (Number(item.cash_collection   || 0) +
+                            Number(item.cheque_collection || 0) +
+                            Number(item.online_collection || 0));
 
-        return {
-          ...item,
-          total_collection: collection, // Ensure it's available
-          total_demand: demand,         // Ensure it's available
-          recovery_percentage: Number(recoveryPercentage.toFixed(2))
-        };
+        const recoveryPercentage = demand > 0
+          ? Number(((collection / demand) * 100).toFixed(2))
+          : 0;
+
+        return { ...item, total_demand: demand, total_collection: collection, recovery_percentage: recoveryPercentage };
       });
     }
-    return res.json({ success: true, dbFlag: dbFlag, data: parsedData });
 
-  } catch (error) {
-    console.error("fetchMonthwiseData Error:", error);
-    return res.status(500).json({ success: false, message: error.message });
+    return res.json({ success: true, dbFlag, data: parsedData });
+
+  } catch (err) {
+    console.error('fetchMonthwiseData Error:', err);
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
-/**
- * Fetch Estate property stats from aost_prop_mas
- * Returns: total_properties, lease_properties, rented_properties, vacant_properties
- * @param {Object} req - Express request object
- * @param {Object} res - Express response object
- */
+
 const fetchEstateStats = async (req, res) => {
   try {
     const ulbId = req.query.ulbId ? Number(req.query.ulbId) : 1670;
 
     const sql = `
       SELECT
-        COUNT(p.var_prop_propno)                                             AS total_properties,
-        SUM(CASE WHEN p.var_prop_type = 'L' THEN 1 ELSE 0 END)             AS lease_properties,
-        SUM(CASE WHEN p.var_prop_type = 'R' THEN 1 ELSE 0 END)             AS rented_properties,
-        SUM(CASE WHEN p.var_prop_type IS NULL
-                   OR p.var_prop_type = '' THEN 1 ELSE 0 END)              AS vacant_properties
-      FROM estate.aost_prop_mas p
-      WHERE p.num_prop_ulbid = :ulbId
+        total_properties,
+        lease_properties,
+        rented_properties,
+        vacant_properties
+      FROM admins.view_Estate_prop_count
+      WHERE num_prop_ulbid = :ulbId
     `;
 
-    const result = await executeQuery(sql, { ulbId }, {
-      outFormat: oracledb.OUT_FORMAT_OBJECT
-    });
+    const result = await executeQuery(sql, { ulbId }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
+    const row    = result.rows?.[0] || {};
 
-    const row = result.rows && result.rows.length > 0 ? result.rows[0] : {};
-
-    res.json({
+    return res.json({
       success: true,
       data: {
-        total_properties: Number(row.TOTAL_PROPERTIES) || 0,
-        lease_properties:  Number(row.LEASE_PROPERTIES)  || 0,
-        rented_properties: Number(row.RENTED_PROPERTIES) || 0,
-        vacant_properties: Number(row.VACANT_PROPERTIES) || 0,
-      }
+        total_properties:  Number(row.TOTAL_PROPERTIES  ?? row.total_properties)  || 0,
+        lease_properties:  Number(row.LEASE_PROPERTIES  ?? row.lease_properties)  || 0,
+        rented_properties: Number(row.RENTED_PROPERTIES ?? row.rented_properties) || 0,
+        vacant_properties: Number(row.VACANT_PROPERTIES ?? row.vacant_properties) || 0,
+      },
     });
 
   } catch (err) {
     console.error('Estate Stats Fetch Error:', err);
-    res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({ success: false, message: err.message });
   }
 };
 
+
 module.exports = {
-  fetchMonthwiseData,
   fetchDashboardDataNew,
-  fetchLastSyncDate,
   fetchULBList,
+  fetchLastSyncDate,
   fetchRTSULBWiseData,
   fetchRTSULBDeptWiseData,
   fetchRTSULBServiceWiseData,
   fetchRTSStatusWiseData,
   fetchRTSApplicationDetailData,
   fetchWaterTaxTotalDemand,
+  fetchMonthwiseData,
   fetchEstateStats,
 };
+  

@@ -48,7 +48,9 @@ const ulbListQuerySchema = z.object({}).passthrough();
  * Returns modules with metrics and color-coded status based on data freshness
  */
 const monthwiseFetchQuerySchema = z.object({
-  ulbId: z.union([z.coerce.number().int().positive(), z.literal('ALL'), z.literal('')]).optional(),
+  // ulbId=0 means ALL corporations (Oracle procedure treats 0 as "no filter")
+  // ulbId>0 means a specific corporation
+  ulbId: z.union([z.coerce.number().int().min(0), z.literal('ALL'), z.literal('')]).optional(),
   flag: z.string().optional()
 }).passthrough();
 
@@ -58,16 +60,16 @@ const monthwiseFetchQuerySchema = z.object({
  * fromDate: DD-Mon-YYYY string, defaults to '01-Apr-2026'
  */
 const waterTaxTotalDemandQuerySchema = z.object({
-  ulbId: z.coerce.number().int().positive({ message: 'ulbId must be a positive integer' }).optional(),
+  ulbId: z.union([z.coerce.number().int().min(0), z.literal('ALL'), z.literal('')]).optional(),
   fromDate: z.string().optional()
 }).passthrough();
 
 /**
  * Schema for Estate property stats fetching
- * ulbId: defaults to 1670 if omitted
+ * ulbId: 0 or 'ALL' for all corporations, or positive number
  */
 const estateStatsQuerySchema = z.object({
-  ulbId: z.coerce.number().int().positive({ message: 'ulbId must be a positive integer' }).optional()
+  ulbId: z.union([z.coerce.number().int().min(0), z.literal('ALL'), z.literal('')]).optional()
 }).passthrough();
 
 module.exports = {

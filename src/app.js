@@ -18,10 +18,10 @@ function createApp() {
   app.use(helmet());
   app.use(
     cors({
-      // origin: config.corsOrigin === '*' ? true : config.corsOrigin.split(',').map((x) => x.trim()),
-      origin: [
-    'http://localhost:5173',
-  ],
+      origin: (origin, callback) => {
+        // Allow all origins (reflection) while supporting credentials
+        callback(null, true);
+      },
       credentials: true,
     })
   );

@@ -1,14 +1,14 @@
 const express = require('express');
 const validate = require('../../../middleware/validate.middleware');
 const { authRequired } = require('../../../middleware/auth');
-const { getTilesDataQuerySchema, getModewiseCollectionQuerySchema,getPropertySummaryQuerySchema,
+const { getTilesDataQuerySchema, getModewiseCollectionQuerySchema, getPropertySummaryQuerySchema,
   getCollectioninPerctQuerySchema, getTotalPerfCorpbyCollSchema, getTotalPerfCorpCollectionSchema,
   getTodaysCollectionSchema
-  } = require('./Property.validation');
-const { getTilesDataHandler, getModewiseCollectionHandler,getPropertySummaryHandler,
+} = require('./Property.validation');
+const { getTilesDataHandler, getModewiseCollectionHandler, getPropertySummaryHandler,
   getCollectioninPerctHandler, getTotalPerfCorpbyCollHandler, getTotalPerfCorpCollectionHandler,
   getTodaysCollectionHandler
- } = require('./Property.controller');
+} = require('./Property.controller');
 
 const router = express.Router();
 
