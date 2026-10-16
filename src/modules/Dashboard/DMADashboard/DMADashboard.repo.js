@@ -78,26 +78,67 @@ const fetchDashboardDataNew = async (req, res) => {
     let configJoin   = '';
     let rtsTotal, rtsApproved, rtsPending;
 
-    if (specificUlb) {
-      params.ulbId = Number(ulbId);
-      ulbCondition = 'AND d.num_dashboard_ulbid = :ulbId';
-      configJoin   = `AND EXISTS (
-                        SELECT 1 FROM admins.AOMA_DMADASHBOARDCONFIG_MAS dc
-                        WHERE  m.var_module_code               = dc.var_dashboardconfg_modulecode
-                          AND  dc.num_dashboardconfg_ulbid     = :ulbId
-                          AND  dc.var_dashboardconfg_chr_active = 'Y'
-                      )`;
+		if (specificUlb) {
+		  params.ulbId = Number(ulbId);
 
-      // Corporation-specific RTS counts (live from vw_dashborddata)
-      rtsTotal    = `(SELECT COUNT(*)           FROM aorts.vw_dashborddata WHERE ulbid = :ulbId AND ulbid NOT IN (550,1,5))`;
-      rtsApproved = `(SELECT COUNT(*)           FROM aorts.vw_dashborddata WHERE ulbid = :ulbId AND ulbid NOT IN (550,1,5) AND status = 'Approved')`;
-      rtsPending  = `(SELECT COUNT(*)           FROM aorts.vw_dashborddata WHERE ulbid = :ulbId AND ulbid NOT IN (550,1,5) AND status IN ('Authorisation Pending','In Process','Verification Pending','Payment Pending'))`;
-    } else {
-      // ALL corporations — use pre-aggregated summary views (faster)
-      rtsTotal    = `(SELECT total_applications    FROM aorts.dmc_dashboard_summary)`;
-      rtsApproved = `(SELECT approved_applications FROM aorts.dmc_dashboard_summary)`;
-      rtsPending  = `(SELECT pending_applications  FROM aorts.vw_dhulerts_pending_apl)`;
-    }
+		  ulbCondition = 'AND d.num_dashboard_ulbid = :ulbId';
+
+		  configJoin = `AND EXISTS (
+			SELECT 1
+			FROM admins.AOMA_DMADASHBOARDCONFIG_MAS dc
+			WHERE m.var_module_code = dc.var_dashboardconfg_modulecode
+			  AND dc.num_dashboardconfg_ulbid = :ulbId
+			  AND dc.var_dashboardconfg_chr_active = 'Y'
+		  )`;
+
+		  // ULB ID 1670: Use summary queries
+		  if (Number(ulbId) === 1670) {
+			rtsTotal = `(SELECT total_applications
+						 FROM aorts.dmc_dashboard_summary)`;
+
+			rtsApproved = `(SELECT approved_applications
+							FROM aorts.dmc_dashboard_summary)`;
+
+			rtsPending = `(SELECT pending_applications
+						   FROM aorts.vw_dhulerts_pending_apl)`;
+
+		  } else {
+			// Other specific ULBs: Use live counts
+			rtsTotal = `(SELECT COUNT(*)
+						 FROM aorts.vw_dashborddata
+						 WHERE ulbid = :ulbId
+						   AND ulbid NOT IN (550, 1, 5))`;
+
+			rtsApproved = `(SELECT COUNT(*)
+							FROM aorts.vw_dashborddata
+							WHERE ulbid = :ulbId
+							  AND ulbid NOT IN (550, 1, 5)
+							  AND status = 'Approved')`;
+
+			rtsPending = `(SELECT COUNT(*)
+						   FROM aorts.vw_dashborddata
+						   WHERE ulbid = :ulbId
+							 AND ulbid NOT IN (550, 1, 5)
+							 AND status IN (
+							   'Authorisation Pending',
+							   'In Process',
+							   'Verification Pending',
+							   'Payment Pending'
+							 ))`;
+		  }
+
+		} else {
+		  // All corporations: Use summary queries
+		  rtsTotal = `(SELECT total_applications
+					   FROM aorts.dmc_dashboard_summary)`;
+
+		  rtsApproved = `(SELECT approved_applications
+						  FROM aorts.dmc_dashboard_summary)`;
+
+		  rtsPending = `(SELECT pending_applications
+						 FROM aorts.vw_dhulerts_pending_apl)`;
+		}
+
 
     const sql = `
       SELECT JSON_ARRAYAGG(
